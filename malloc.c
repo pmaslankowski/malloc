@@ -10,11 +10,14 @@
 
 
 static LIST_HEAD(, mem_chunk) chunk_list; /* list of all chunks */
-
+static int malloc_initialised = 0;
 
 /* Implementation of interface: */
 
-void *malloc(size_t size) {
+void *foo_malloc(size_t size) {
+    if(!malloc_initialised)
+        malloc_init();
+
     if(size >= LARGE_THRESHOLD) {
         mem_chunk_t *chunk = allocate_chunk(size);
         return give_block_from_chunk(chunk, &chunk->ma_first, size);
@@ -27,6 +30,7 @@ void *malloc(size_t size) {
                 return give_block_from_chunk(chunk, block, size);
         }
     }
+
     chunk = allocate_chunk(NEW_CHUNK_SIZE);
     return give_block_from_chunk(chunk, &chunk->ma_first, size);
 }
@@ -71,6 +75,7 @@ void mdump() {
 /* ==============================================================================================================================*/
 /* Auxilary functions: */
 void malloc_init() {
+    malloc_initialised = 1;
     LIST_INIT(&chunk_list);
 }
 
