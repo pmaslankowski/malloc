@@ -56,15 +56,23 @@ void free(void *ptr) {
 }*/
 
 
-void mdump() {
+void mdump(int verbose) {
     mem_chunk_t *chunk;
     mem_block_t *block;
     int chunk_index = 0;
     LIST_FOREACH(chunk, &chunk_list, ma_node) {
         printf("Chunk: %d\nSize: %d\nBlocks:\n", chunk_index++, chunk->size);
         int block_index = 0;
-        LIST_FOREACH(block, &chunk->ma_freeblks, mb_node) 
+        LIST_FOREACH(block, &chunk->ma_freeblks, mb_node) {
             printf("\tBlock: %d\t Size: %d", block_index++, block->mb_size);
+            if(verbose) {
+                printf("\tData:");
+                for(int i=0; i < block->mb_size; i++) {
+                    if(i % 4 == 0) printf("\n");
+                    printf("%04x ", *((uint8_t*) block->mb_data + i));
+                }
+            }
+        }
     }
 
 }
