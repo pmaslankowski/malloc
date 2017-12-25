@@ -68,7 +68,7 @@ void mdump(int verbose) {
             if(verbose) {
                 printf("\tData:");
                 for(int i=0; i < block->mb_size; i++) {
-                    if(i % 4 == 0) printf("\n");
+                    if(i % 8 == 0) printf("\n\t\t%lx: ",(uint64_t) block->mb_data + i);
                     printf("%04x ", *((uint8_t*) block->mb_data + i));
                 }
             }
@@ -118,11 +118,17 @@ void allocate_pages(size_t size, alloc_context_t* res) {
 
 /* boundary tags: 1 -> neighbor block is free */ 
 void set_lower_boundary_tag(mem_block_t *block, unsigned value) {
-    block->mb_data[0] |= value << 31;
+    if(value == 1)
+        block->mb_data[0] |= 1u << 31;
+    else
+        block->mb_data[0] &= 0u << 31;
 }
 
 void set_upper_boundary_tag(mem_block_t *block, unsigned value) {
-    ((uint8_t*)block->mb_data)[block->mb_size-1] |= value << 31; // cast is needed because mb_size is in bytes
+    if(value == 1)
+        ((uint8_t*)block->mb_data)[block->mb_size-1] |= 1u << 31; // cast is needed because mb_size is in bytes
+    else
+        ((uint8_t*)block->mb_data)[block->mb_size-1] &= 0u << 31;
 }
 
 int block_has_enough_space(mem_block_t *block, size_t size) {
@@ -133,19 +139,32 @@ int block_may_be_splited(mem_block_t *block, size_t size) {
     return (uint32_t) block->mb_size >= size + 16u + sizeof(mem_block_t); // true if there is enough space to split block
 }
 
-mem_block_t *split_block(mem_block_t *block, size_t size) { 
+size_t allign_to_8(size_t size) {
+    if (size % 8 == 0) return size;
+    return size + 8 - size % 8;
+}
+
+mem_block_t *split_block(mem_block_t *block, size_t size) { //TODO: add allignment constraints to this and similar functions to make implementation of memalign possible
     // splits current block and returns a block consisting space which left after split
-    mem_block_t* block_left = (mem_block_t*) block->mb_data + size;
-    block_left->mb_size = block->mb_size - size;
-    block->mb_size = size;
+    size = allign_to_8(size);
+    mem_block_t* block_left = (mem_block_t*) block->mb_data + size + 16; // we add 16 because of boundary tags (2 * word)
+    block_left->mb_size = block->mb_size - size - 16;
+    block->mb_size = size + 16;
     set_lower_boundary_tag(block_left, 1);
     set_upper_boundary_tag(block, 1);
     return block_left;
 }
 
 
-void chunk_add_free_block() {
-
+void chunk_add_free_block(mem_chunk_t *chunk, mem_block_t *block) {
+    mem_block_t *block_iter;
+    LIST_FOREACH(block_iter, &chunk->ma_freeblks, mb_node) {
+        if(block >= block_iter) {
+            LIST_INSERT_BEFORE(block_iter, block, mb_node);
+            return;
+        }
+    }
+    LIST_INSERT_AFTER(block_iter, block, mb_node);
 }
 
 
@@ -159,16 +178,16 @@ void *give_block_from_chunk(mem_chunk_t *chunk, mem_block_t *block, size_t size)
         if(block >= &chunk->ma_first)
             *((uint64_t*)block-1) |= 0 << 31;
         
-        chunk_add_free_block(chunk, block_left);
+        LIST_INSERT_AFTER(block, block_left, mb_node);
         LIST_REMOVE(block, mb_node);
 
         return block->mb_data + 1; 
     } else {
         // set boundary tags for neighbor blocks
         if(block >= &chunk->ma_first)
-            *((uint64_t*)block-1) |= 0 << 31;
+            *((uint64_t*)block-1) &= 0 << 31;
         if((uint8_t*) block->mb_data + block->mb_size < (uint8_t*)chunk->ma_first.mb_data + chunk->size)
-            *(uint64_t*)((uint8_t*)block->mb_data + block->mb_size + sizeof(mem_block_t)) |= 0 << 31;
+            *(uint64_t*)((uint8_t*)block->mb_data + block->mb_size + sizeof(mem_block_t)) &= 0 << 31;
 
         LIST_REMOVE(block, mb_node);
 

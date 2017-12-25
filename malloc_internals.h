@@ -35,5 +35,6 @@ void set_upper_boundary_tag(mem_block_t *block, unsigned value);
 void set_lower_boundary_tag(mem_block_t *block, unsigned value);
 int block_has_enough_space(mem_block_t *block, size_t size);
 void *give_block_from_chunk(mem_chunk_t *chunk, mem_block_t *block, size_t size);
+void chunk_add_free_block(mem_chunk_t *chunk, mem_block_t *block);
 
 #endif
