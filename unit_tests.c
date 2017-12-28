@@ -1,20 +1,27 @@
 #include <stdio.h>
 #include "malloc.h"
 #include "malloc_internals.h"
+#include "munit.h"
 
-void allocate_one_page();
+void allocate_chunk_test();
 void malloc_int();
 
 int main() {
-    malloc_int();
+    allocate_chunk_test();
     return 0;
 }
 
-void allocate_one_page() {
-    printf("Test: allocate_one_page:\n");
+void allocate_chunk_test() {
+    printf("Test: allocate_chunk\n");
     malloc_init();
-    allocate_chunk(1);
-    mdump(0);
+    mem_chunk_t* chunk = allocate_chunk(4000);
+    
+    munit_assert_int(chunk->eoc, ==, EOC);
+    munit_assert_int(chunk->size, ==, 4096-56);
+    munit_assert_int(chunk->ma_first.mb_size, ==, 4096-56);
+    munit_assert_int(chunk->ma_first.mb_data[chunk->size / 8], ==, EOC);
+    munit_assert_int( *(int64_t*)((void*)chunk + 4096 - 8), ==, EOC); // checks EOC in different way
+    munit_assert(LIST_FIRST(&chunk->ma_freeblks) == &chunk->ma_first);
 }
 
 void malloc_int() {
