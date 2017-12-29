@@ -6,11 +6,13 @@
 #include "munit.h"
 
 void allocate_chunk_test();
-void trim_block_test();
 void block_has_enough_space_test1();
 void block_has_enough_space_test2();
 void block_has_enough_space_test3();
 void block_has_enough_space_test4();
+void trim_block_test1();
+void trim_block_test2();
+void trim_block_test3();
 void block_may_be_splited_test1();
 void split_block_test1();
 void split_block_test2();
@@ -19,11 +21,13 @@ void malloc_int();
 
 int main() {
     allocate_chunk_test();
-    trim_block_test();
     block_has_enough_space_test1();
     block_has_enough_space_test2();
     block_has_enough_space_test3();
     block_has_enough_space_test4();
+    trim_block_test1();
+    trim_block_test2();
+    trim_block_test3();
     block_may_be_splited_test1();
     split_block_test1();
     split_block_test2();
@@ -41,28 +45,6 @@ void allocate_chunk_test() {
     munit_assert_int(chunk->ma_first.mb_data[chunk->size / 8], ==, EOC);
     munit_assert_int( *(int64_t*)((void*)chunk + 4096 - 8), ==, EOC); // checks EOC in different way
     munit_assert(LIST_FIRST(&chunk->ma_freeblks) == &chunk->ma_first);
-}
-
-void trim_block_test() {
-    printf("Test: trim_block\n");
-    LIST_HEAD(, mem_block) mock_freeblks = LIST_HEAD_INITIALIZER(mock_freeblks);
-    LIST_INIT(&mock_freeblks);
-    mem_block_t* block = (mem_block_t*) aligned_alloc(32, 500);
-    LIST_INSERT_HEAD(&mock_freeblks, block, mb_node);
-
-    block->mb_size = 104;
-    set_boundary_tag(block);
-    mem_block_t* trimed_block = block_trim(block, 32);
-
-    munit_assert_int(block->mb_size, ==, 16);
-    munit_assert_int(block->mb_data[block->mb_size / 8 - 1], ==, 16); // boundary tag
-    munit_assert_int((uint64_t)trimed_block, ==, (uint64_t)&block->mb_data[2]);
-    munit_assert_int(trimed_block->mb_size, ==, 88);
-    munit_assert_int(trimed_block->mb_data[trimed_block->mb_size / 8 - 1], ==, 88);
-    munit_assert(LIST_FIRST(&mock_freeblks) == block);
-    munit_assert(LIST_NEXT(LIST_FIRST(&mock_freeblks), mb_node) == trimed_block);
-    
-    free(block);
 }
 
 void block_has_enough_space_test1() {
@@ -84,12 +66,13 @@ void block_has_enough_space_test2() {
     /* Allignmment to 16 */
     printf("Test: block_has_enough_space_2 - allignment to 16\n");
     mem_block_t* block = (mem_block_t*) aligned_alloc(16, 100);
-    block->mb_size = 40;
+    block->mb_size = 72;
 
-    munit_assert_int(block_has_enough_space(block, 9, 16), ==, 0);
-    munit_assert_int(block_has_enough_space(block, 30, 16), ==, 0);
-    munit_assert_int(block_has_enough_space(block, 32, 16), ==, 0);    
-    munit_assert_int(block_has_enough_space(block, 40, 16), ==, 0);
+    munit_assert_int(block_has_enough_space(block, 9, 16), ==, 1);
+    munit_assert_int(block_has_enough_space(block, 17, 16), ==, 1);
+    munit_assert_int(block_has_enough_space(block, 24, 16), ==, 1);    
+    munit_assert_int(block_has_enough_space(block, 25, 16), ==, 0);
+    munit_assert_int(block_has_enough_space(block, 32, 16), ==, 0);
 
     free(block);       
 }
@@ -98,18 +81,19 @@ void block_has_enough_space_test3() {
     /* Allignmment to 32 */
     printf("Test: block_has_enough_space_3 - allignment to 32\n");
     mem_block_t* block = (mem_block_t*) aligned_alloc(32, 100);
-    block->mb_size = 64;
+    block->mb_size = 88;
 
-    munit_assert_int(block_has_enough_space(block, 9, 32), ==, 0);
-    munit_assert_int(block_has_enough_space(block, 30, 32), ==, 0);    
+    munit_assert_int(block_has_enough_space(block, 9, 32), ==, 1);
+    munit_assert_int(block_has_enough_space(block, 18, 32), ==, 1);    
+    munit_assert_int(block_has_enough_space(block, 24, 32), ==, 1);
+    munit_assert_int(block_has_enough_space(block, 25, 32), ==, 0);
     munit_assert_int(block_has_enough_space(block, 32, 32), ==, 0);
-    munit_assert_int(block_has_enough_space(block, 33, 32), ==, 0);
 
     free(block);       
 }
 
 void block_has_enough_space_test4() {
-    /* Allignmment to 32 */
+    /* Allignmment to 64 */
     printf("Test: block_has_enough_space_4 - allignment to 64\n");
     mem_block_t* block = (mem_block_t*) aligned_alloc(64, 500);
     block->mb_size = 128;
@@ -121,6 +105,78 @@ void block_has_enough_space_test4() {
     munit_assert_int(block_has_enough_space(block, 65, 64), ==, 0);
 
     free(block);       
+}
+
+void trim_block_test1() {
+    /* Allignment - 32 */
+    printf("Test: trim_block_1- allignment 32\n");
+    LIST_HEAD(, mem_block) mock_freeblks = LIST_HEAD_INITIALIZER(mock_freeblks);
+    LIST_INIT(&mock_freeblks);
+    mem_block_t* block = (mem_block_t*) aligned_alloc(32, 500);
+    LIST_INSERT_HEAD(&mock_freeblks, block, mb_node);
+
+    block->mb_size = 104;
+    set_boundary_tag(block);
+    mem_block_t* trimed_block = block_trim(block, 40, 32);
+
+    munit_assert_int(block->mb_size, ==, 48);
+    munit_assert_int(block->mb_data[block->mb_size / 8 - 1], ==, 48); // boundary tag
+    munit_assert_int((uint64_t)trimed_block, ==, (uint64_t)&block->mb_data[6]);
+    munit_assert_int(trimed_block->mb_size, ==, 48);
+    munit_assert_int(trimed_block->mb_data[trimed_block->mb_size / 8 - 1], ==, 48);
+    munit_assert(LIST_FIRST(&mock_freeblks) == block);
+    munit_assert(LIST_NEXT(LIST_FIRST(&mock_freeblks), mb_node) == trimed_block);
+    munit_assert((uint64_t)trimed_block->mb_data % 32 == 0);
+
+    free(block);
+}
+
+void trim_block_test2() {
+    /* Allignment - 16 */
+    printf("Test: trim_block_2 - allignment 16\n");
+    LIST_HEAD(, mem_block) mock_freeblks = LIST_HEAD_INITIALIZER(mock_freeblks);
+    LIST_INIT(&mock_freeblks);
+    mem_block_t* block = (mem_block_t*) aligned_alloc(16, 100);
+    LIST_INSERT_HEAD(&mock_freeblks, block, mb_node);
+
+    block->mb_size = 88;
+    set_boundary_tag(block);
+    mem_block_t* trimed_block = block_trim(block, 32, 16);
+
+    munit_assert_int(block->mb_size, ==, 32);
+    munit_assert_int(block->mb_data[block->mb_size / 8 - 1], ==, 32); // boundary tag
+    munit_assert_int((uint64_t)trimed_block, ==, (uint64_t)&block->mb_data[4]);
+    munit_assert_int(trimed_block->mb_size, ==, 48);
+    munit_assert_int(trimed_block->mb_data[trimed_block->mb_size / 8 - 1], ==, 48);
+    munit_assert(LIST_FIRST(&mock_freeblks) == block);
+    munit_assert(LIST_NEXT(LIST_FIRST(&mock_freeblks), mb_node) == trimed_block);
+    munit_assert((uint64_t)trimed_block->mb_data % 16 == 0);
+    
+    free(block);
+}
+
+void trim_block_test3() {
+    /* Allignment - 64 */
+    printf("Test: trim_block_3 - allignment 64\n");
+    LIST_HEAD(, mem_block) mock_freeblks = LIST_HEAD_INITIALIZER(mock_freeblks);
+    LIST_INIT(&mock_freeblks);
+    mem_block_t* block = (mem_block_t*) aligned_alloc(64, 100);
+    LIST_INSERT_HEAD(&mock_freeblks, block, mb_node);
+
+    block->mb_size = 88;
+    set_boundary_tag(block);
+    mem_block_t* trimed_block = block_trim(block, 16, 64);
+
+    munit_assert_int(block->mb_size, ==, 48);
+    munit_assert_int(block->mb_data[block->mb_size / 8 - 1], ==, 48); // boundary tag
+    munit_assert_int((uint64_t)trimed_block, ==, (uint64_t)&block->mb_data[6]);
+    munit_assert_int(trimed_block->mb_size, ==, 32);
+    munit_assert_int(trimed_block->mb_data[trimed_block->mb_size / 8 - 1], ==, 32);
+    munit_assert(LIST_FIRST(&mock_freeblks) == block);
+    munit_assert(LIST_NEXT(LIST_FIRST(&mock_freeblks), mb_node) == trimed_block);
+    munit_assert((uint64_t)trimed_block->mb_data % 64 == 0);
+
+    free(block);
 }
 
 void block_may_be_splited_test1() {

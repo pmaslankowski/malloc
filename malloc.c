@@ -136,25 +136,44 @@ uint64_t allign(uint64_t value, uint64_t allignment) {
    block has enough space to divide into two blocks with proper allignment */
 int block_has_enough_space(mem_block_t *block, size_t size, unsigned allignment) {
     assert(allign(size, 8u) >= 16); // because of place for boundary tag when block is free
-    uint64_t addr = (uint64_t)block->mb_data;
+    uint64_t addr = (uint64_t) block->mb_data;
     uint64_t alligned_addr = allign(addr, allignment);
-    if(alligned_addr == addr) 
-        return size <= (uint64_t)block->mb_size - BOUNDARY_TAG_SIZE;
-    else
-        return alligned_addr - addr >= sizeof(mem_block_t) + BOUNDARY_TAG_SIZE && alligned_addr - addr + size <= (uint64_t)block->mb_size - BOUNDARY_TAG_SIZE;
+    uint64_t alligned_size = allign(size, 8u);
+    if(alligned_addr != addr) {
+        while(alligned_addr - addr < sizeof(mem_block_t) + BOUNDARY_TAG_SIZE)
+            alligned_addr += allignment;
+    }
+    if(alligned_addr + alligned_size + BOUNDARY_TAG_SIZE > addr + block->mb_size)
+        return 0;
+    
+    return 1; 
 }
 
 int is_trimming_needed(mem_block_t *block, unsigned allignment) {
     return (uint64_t)block->mb_data % allignment != 0;
 }
 
-/* Function trims block and returns new, properly alligned block. Function assumes that trimming is possible and necessary. */
-mem_block_t *block_trim(mem_block_t *block, unsigned allignment) {
-    uint64_t addr = (uint64_t)block->mb_data;
+uint64_t get_alligned_addr(mem_block_t *block, size_t size, unsigned allignment) {
+    uint64_t addr = (uint64_t) block->mb_data;
     uint64_t alligned_addr = allign(addr, allignment);
-    mem_block_t *alligned_block = (mem_block_t*)(alligned_addr - 8);
-    alligned_block->mb_size = block->mb_size - (alligned_addr - 8 - addr);
-    block->mb_size = alligned_addr - 8 - addr;
+    uint64_t alligned_size = allign(size, 8u);
+    assert(alligned_size >= 16);
+    if(alligned_addr != addr) {
+        while(alligned_addr - addr < sizeof(mem_block_t) + BOUNDARY_TAG_SIZE)
+            alligned_addr += allignment;
+    }
+    assert(alligned_addr + alligned_size + BOUNDARY_TAG_SIZE <= addr + block->mb_size);
+    return alligned_addr;
+}
+
+/* Function trims block and returns new, properly alligned block. Function assumes that trimming is possible and necessary.
+   Caution: size here is only for assertion. Trimmed block is not further splited to the best size. */
+mem_block_t *block_trim(mem_block_t *block, size_t size, unsigned allignment) {
+    uint64_t addr = (uint64_t)block->mb_data;
+    uint64_t alligned_addr = get_alligned_addr(block, size, allignment);
+    mem_block_t *alligned_block = (mem_block_t*)(alligned_addr - MEM_BLOCK_OVERHEAD);
+    alligned_block->mb_size = block->mb_size - (alligned_addr - addr);
+    block->mb_size = alligned_addr - addr - MEM_BLOCK_OVERHEAD;
 
     set_boundary_tag(block); // update because size has changed       
     set_boundary_tag(alligned_block);
