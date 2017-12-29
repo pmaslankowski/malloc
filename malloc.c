@@ -159,7 +159,7 @@ mem_block_t *block_trim(mem_block_t *block, unsigned allignment) {
 }
 
 int block_may_be_splited(mem_block_t *block, size_t size) {
-    return (uint32_t) block->mb_size >= size + 16u + sizeof(mem_block_t); // true if there is enough space to split block
+    return (uint64_t) block->mb_size >= allign(size, 8u) + BOUNDARY_TAG_SIZE +  sizeof(mem_block_t); // true if there is enough space to split block
 }
 
 

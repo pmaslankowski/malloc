@@ -40,6 +40,7 @@ void memory_map(size_t size, alloc_context_t* res);
 void set_boundary_tag(mem_block_t *block);
 int block_has_enough_space(mem_block_t *block, size_t size, unsigned allignment);
 mem_block_t *block_trim(mem_block_t *block, unsigned allignment);
+int block_may_be_splited(mem_block_t *block, size_t size);
 void *give_block_from_chunk(mem_chunk_t *chunk, mem_block_t *block, size_t size);
 void chunk_add_free_block(mem_chunk_t *chunk, mem_block_t *block);
 
