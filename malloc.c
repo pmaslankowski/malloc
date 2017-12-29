@@ -136,7 +136,7 @@ int block_has_enough_space(mem_block_t *block, size_t size, unsigned allignment)
     if(alligned_addr == addr) 
         return size <= (uint64_t)block->mb_size - BOUNDARY_TAG_SIZE;
     else
-        return alligned_addr - addr >= sizeof(mem_block_t) && alligned_addr - addr + size >= (uint64_t)block->mb_size - BOUNDARY_TAG_SIZE;
+        return alligned_addr - addr >= sizeof(mem_block_t) && alligned_addr - addr + size <= (uint64_t)block->mb_size - BOUNDARY_TAG_SIZE;
 }
 
 int is_trimming_needed(mem_block_t *block, unsigned allignment) {
