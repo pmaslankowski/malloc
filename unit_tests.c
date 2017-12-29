@@ -10,7 +10,10 @@ void trim_block_test();
 void block_has_enough_space_test1();
 void block_has_enough_space_test2();
 void block_has_enough_space_test3();
+void block_has_enough_space_test4();
 void block_may_be_splited_test1();
+void split_block_test1();
+void split_block_test2();
 
 void malloc_int();
 
@@ -20,7 +23,10 @@ int main() {
     block_has_enough_space_test1();
     block_has_enough_space_test2();
     block_has_enough_space_test3();
+    block_has_enough_space_test4();
     block_may_be_splited_test1();
+    split_block_test1();
+    split_block_test2();
     return 0;
 }
 
@@ -63,13 +69,13 @@ void block_has_enough_space_test1() {
     /* Allignment to 8 in this test */
     printf("Test: block_has_enough_space_1 - allignment to 8\n");
     mem_block_t* block = (mem_block_t*) aligned_alloc(8, 100);
-    block->mb_size = 16;
+    block->mb_size = 40;
 
-    munit_assert_int(block_has_enough_space(block, 4, 8), ==, 1);
-    munit_assert_int(block_has_enough_space(block, 7, 8), ==, 1);
-    munit_assert_int(block_has_enough_space(block, 8, 8), ==, 1);    
-    munit_assert_int(block_has_enough_space(block, 9, 8), ==, 0);
-    munit_assert_int(block_has_enough_space(block, 16, 8), ==, 0);
+    munit_assert_int(block_has_enough_space(block, 9, 8), ==, 1);
+    munit_assert_int(block_has_enough_space(block, 26, 8), ==, 1);
+    munit_assert_int(block_has_enough_space(block, 32, 8), ==, 1);    
+    munit_assert_int(block_has_enough_space(block, 33, 8), ==, 0);
+    munit_assert_int(block_has_enough_space(block, 40, 8), ==, 0);
 
     free(block);    
 }
@@ -78,12 +84,12 @@ void block_has_enough_space_test2() {
     /* Allignmment to 16 */
     printf("Test: block_has_enough_space_2 - allignment to 16\n");
     mem_block_t* block = (mem_block_t*) aligned_alloc(16, 100);
-    block->mb_size = 32;
+    block->mb_size = 40;
 
-    munit_assert_int(block_has_enough_space(block, 0, 16), ==, 0);
-    munit_assert_int(block_has_enough_space(block, 4, 16), ==, 0);
-    munit_assert_int(block_has_enough_space(block, 8, 16), ==, 0);    
-    munit_assert_int(block_has_enough_space(block, 16, 16), ==, 0);
+    munit_assert_int(block_has_enough_space(block, 9, 16), ==, 0);
+    munit_assert_int(block_has_enough_space(block, 30, 16), ==, 0);
+    munit_assert_int(block_has_enough_space(block, 32, 16), ==, 0);    
+    munit_assert_int(block_has_enough_space(block, 40, 16), ==, 0);
 
     free(block);       
 }
@@ -94,10 +100,25 @@ void block_has_enough_space_test3() {
     mem_block_t* block = (mem_block_t*) aligned_alloc(32, 100);
     block->mb_size = 64;
 
-    munit_assert_int(block_has_enough_space(block, 16, 32), ==, 1);
-    munit_assert_int(block_has_enough_space(block, 30, 32), ==, 1);    
-    munit_assert_int(block_has_enough_space(block, 32, 32), ==, 1);
+    munit_assert_int(block_has_enough_space(block, 9, 32), ==, 0);
+    munit_assert_int(block_has_enough_space(block, 30, 32), ==, 0);    
+    munit_assert_int(block_has_enough_space(block, 32, 32), ==, 0);
     munit_assert_int(block_has_enough_space(block, 33, 32), ==, 0);
+
+    free(block);       
+}
+
+void block_has_enough_space_test4() {
+    /* Allignmment to 32 */
+    printf("Test: block_has_enough_space_4 - allignment to 64\n");
+    mem_block_t* block = (mem_block_t*) aligned_alloc(64, 500);
+    block->mb_size = 128;
+
+    munit_assert_int(block_has_enough_space(block, 9, 64), ==, 1);
+    munit_assert_int(block_has_enough_space(block, 30, 64), ==, 1);    
+    munit_assert_int(block_has_enough_space(block, 60, 64), ==, 1);
+    munit_assert_int(block_has_enough_space(block, 64, 64), ==, 1);
+    munit_assert_int(block_has_enough_space(block, 65, 64), ==, 0);
 
     free(block);       
 }
@@ -107,13 +128,55 @@ void block_may_be_splited_test1() {
     mem_block_t *block = (mem_block_t*) malloc(100);
     block->mb_size = 64;
 
-    munit_assert_int(block_may_be_splited(block, 10), ==, 1);
+    munit_assert_int(block_may_be_splited(block, 24), ==, 1);
     munit_assert_int(block_may_be_splited(block, 29), ==, 1);
     munit_assert_int(block_may_be_splited(block, 32), ==, 1);
     munit_assert_int(block_may_be_splited(block, 33), ==, 0);
     munit_assert_int(block_may_be_splited(block, 39), ==, 0);
 
     free(block);    
+}
+
+void split_block_test1() {
+    printf("Test: split_block_1\n");
+    LIST_HEAD(, mem_block) mock_freeblks = LIST_HEAD_INITIALIZER(mock_freeblks);
+    LIST_INIT(&mock_freeblks);
+    mem_block_t *block = (mem_block_t*) malloc(100);
+    LIST_INSERT_HEAD(&mock_freeblks, block, mb_node);
+    block->mb_size = 64;
+
+    mem_block_t* block_left = split_block(block, 21);
+
+    munit_assert_int(block->mb_size, ==, 32);
+    munit_assert_int(block->mb_data[block->mb_size / 8 - 1], ==, 32);
+    munit_assert_int((uint64_t)block_left, ==, (uint64_t)&block->mb_data[4]);
+    munit_assert_int(block_left->mb_size, ==, 24);
+    munit_assert_int(block_left->mb_data[block_left->mb_size / 8 - 1], ==, 24);
+    munit_assert(LIST_FIRST(&mock_freeblks) == block);
+    munit_assert(LIST_NEXT(LIST_FIRST(&mock_freeblks), mb_node) == block_left);
+
+    free(block);
+}
+
+void split_block_test2() { // wrong test - this block isn't splitable
+    printf("Test: split_block_2\n");
+    LIST_HEAD(, mem_block) mock_freeblks = LIST_HEAD_INITIALIZER(mock_freeblks);
+    LIST_INIT(&mock_freeblks);
+    mem_block_t *block = (mem_block_t*) malloc(100);
+    LIST_INSERT_HEAD(&mock_freeblks, block, mb_node);
+    block->mb_size = 64;
+
+    mem_block_t* block_left = split_block(block, 17);
+
+    munit_assert_int(block->mb_size, ==, 32);
+    munit_assert_int(block->mb_data[block->mb_size / 8 - 1], ==, 32);
+    munit_assert_int((uint64_t)block_left, ==, (uint64_t)&block->mb_data[4]);
+    munit_assert_int(block_left->mb_size, ==, 24);
+    munit_assert_int(block_left->mb_data[block_left->mb_size / 8 - 1], ==, 24);
+    munit_assert(LIST_FIRST(&mock_freeblks) == block);
+    munit_assert(LIST_NEXT(LIST_FIRST(&mock_freeblks), mb_node) == block_left);
+
+    free(block);
 }
 
 void malloc_int() {

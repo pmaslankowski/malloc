@@ -90,8 +90,12 @@ void malloc_init() {
 }
 
 
-/* Function creates new chunk and adds it to list of available chunks */
+/* Function creates new chunk and adds it to list of available chunks.
+   Assumption: size >= 16 (because we need to have place for boundary tags) */
 mem_chunk_t *allocate_chunk(size_t size) {
+    assert(size >= 16);
+    assert(size % 8 == 0);
+
     alloc_context_t alloc_context;
     size_t actual_size = size + MEM_CHUNK_OVERHEAD + EOC_SIZE + BOUNDARY_TAG_SIZE;
     memory_map(actual_size, &alloc_context);
@@ -131,12 +135,13 @@ uint64_t allign(uint64_t value, uint64_t allignment) {
 /* Function checks if block has enough space to share size memory. If start of block's payload is not alligned, then function checks if 
    block has enough space to divide into two blocks with proper allignment */
 int block_has_enough_space(mem_block_t *block, size_t size, unsigned allignment) {
+    assert(allign(size, 8u) >= 16); // because of place for boundary tag when block is free
     uint64_t addr = (uint64_t)block->mb_data;
     uint64_t alligned_addr = allign(addr, allignment);
     if(alligned_addr == addr) 
         return size <= (uint64_t)block->mb_size - BOUNDARY_TAG_SIZE;
     else
-        return alligned_addr - addr >= sizeof(mem_block_t) && alligned_addr - addr + size <= (uint64_t)block->mb_size - BOUNDARY_TAG_SIZE;
+        return alligned_addr - addr >= sizeof(mem_block_t) + BOUNDARY_TAG_SIZE && alligned_addr - addr + size <= (uint64_t)block->mb_size - BOUNDARY_TAG_SIZE;
 }
 
 int is_trimming_needed(mem_block_t *block, unsigned allignment) {
@@ -159,22 +164,23 @@ mem_block_t *block_trim(mem_block_t *block, unsigned allignment) {
 }
 
 int block_may_be_splited(mem_block_t *block, size_t size) {
+    assert(allign(size, 8u) >= 16);
     return (uint64_t) block->mb_size >= allign(size, 8u) + BOUNDARY_TAG_SIZE +  sizeof(mem_block_t); // true if there is enough space to split block
 }
 
-
-size_t allign_to_8(size_t size) {
-    if (size % 8 == 0) return size;
-    return size + 8 - size % 8;
-}
-
-mem_block_t *split_block(mem_block_t *block, size_t size) { //TODO: add allignment constraints to this and similar functions to make implementation of memalign possible
-    // splits current block and returns a block consisting space which left after split
-    size = allign_to_8(size);
-    mem_block_t* block_left = (mem_block_t*) block->mb_data + size + 8; // we add 8 because of boundary tag
-    block_left->mb_size = block->mb_size - size - 8;
-    block->mb_size = size + 8;
+/* Function splits current block and returns a block consisting space which left after split.
+   Function assumes that making split is possible. */
+mem_block_t *split_block(mem_block_t *block, size_t size) { 
+    size_t alligned_size = allign(size, 8u);
+    assert(alligned_size >= 16);
+    mem_block_t* block_left = (mem_block_t*) ((uint8_t*)block->mb_data + alligned_size + BOUNDARY_TAG_SIZE);
+    block_left->mb_size = block->mb_size - alligned_size - BOUNDARY_TAG_SIZE - MEM_BLOCK_OVERHEAD;
+    block->mb_size = alligned_size + BOUNDARY_TAG_SIZE;
+    
     set_boundary_tag(block);
+    set_boundary_tag(block_left);
+
+    LIST_INSERT_AFTER(block, block_left, mb_node);
     return block_left;
 }
 
