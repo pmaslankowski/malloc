@@ -10,6 +10,7 @@ void trim_block_test();
 void block_has_enough_space_test1();
 void block_has_enough_space_test2();
 void block_has_enough_space_test3();
+void block_may_be_splited_test1();
 
 void malloc_int();
 
@@ -19,6 +20,7 @@ int main() {
     block_has_enough_space_test1();
     block_has_enough_space_test2();
     block_has_enough_space_test3();
+    block_may_be_splited_test1();
     return 0;
 }
 
@@ -98,6 +100,20 @@ void block_has_enough_space_test3() {
     munit_assert_int(block_has_enough_space(block, 33, 32), ==, 0);
 
     free(block);       
+}
+
+void block_may_be_splited_test1() {
+    printf("Test: block_may_be_splited_1\n");
+    mem_block_t *block = (mem_block_t*) malloc(100);
+    block->mb_size = 64;
+
+    munit_assert_int(block_may_be_splited(block, 10), ==, 1);
+    munit_assert_int(block_may_be_splited(block, 29), ==, 1);
+    munit_assert_int(block_may_be_splited(block, 32), ==, 1);
+    munit_assert_int(block_may_be_splited(block, 33), ==, 0);
+    munit_assert_int(block_may_be_splited(block, 39), ==, 0);
+
+    free(block);    
 }
 
 void malloc_int() {
