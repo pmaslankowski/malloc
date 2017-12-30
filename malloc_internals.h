@@ -11,6 +11,10 @@
 #define MEM_BLOCK_OVERHEAD (sizeof(mem_block_t) - sizeof(LIST_ENTRY(mem_block_t))) // size of memory meta data in mem_block_t
 #define MEM_CHUNK_OVERHEAD (sizeof(mem_chunk_t) - sizeof(LIST_ENTRY(mem_block_t))) // size of memory meta data in mem_chunk_t
 
+#define DEBUG_ULONG(x) printf("%s = %lu\n", #x, x) 
+#define DEBUG_INT(x) printf("%s = %d\n", #x, x)
+#define DEBUG_LONG(x) printf("%s = %ld\n", #x, x)
+
 typedef struct mem_block {
     int32_t mb_size; /* mb_size > 0 => free, mb_size < 0 => allocated */
     union {
@@ -39,11 +43,13 @@ mem_chunk_t *allocate_chunk(size_t size);
 void memory_map(size_t size, alloc_context_t* res);
 void set_boundary_tag(mem_block_t *block);
 int block_has_enough_space(mem_block_t *block, size_t size, unsigned allignment);
+int is_trimming_needed(mem_block_t *block, unsigned allignment);
 uint64_t get_alligned_addr(mem_block_t *block, size_t size, unsigned allignment);
 mem_block_t *block_trim(mem_block_t *block, size_t size, unsigned allignment);
 int block_may_be_splited(mem_block_t *block, size_t size);
 mem_block_t *split_block(mem_block_t *block, size_t size);
-void *give_block_from_chunk(mem_chunk_t *chunk, mem_block_t *block, size_t size);
+void set_block_allocated(mem_block_t *block);
+void *give_block_from_chunk(mem_block_t *block, size_t size, unsigned allignment);
 void chunk_add_free_block(mem_chunk_t *chunk, mem_block_t *block);
 
 #endif

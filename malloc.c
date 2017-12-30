@@ -8,14 +8,11 @@
 #include "malloc_internals.h"
 #include "malloc_constants.h"
 
-#define DEBUG_ULONG(x) printf("%s = %lu\n", #x, x) 
-#define DEBUG_INT(x) printf("%s = %d\n", #x, x)
-
 static LIST_HEAD(, mem_chunk) chunk_list; /* list of all chunks */
 static int malloc_initialised = 0;
 
 /* Implementation of interface: */
-
+/*
 void *foo_malloc(size_t size) {
     if(!malloc_initialised)
         malloc_init();
@@ -35,7 +32,7 @@ void *foo_malloc(size_t size) {
 
     chunk = allocate_chunk(NEW_CHUNK_SIZE);
     return give_block_from_chunk(chunk, &chunk->ma_first, size);
-}
+}*/
 
 /*
 void *calloc(size_t count, size_t size) {
@@ -215,32 +212,23 @@ void chunk_add_free_block(mem_chunk_t *chunk, mem_block_t *block) {
     LIST_INSERT_AFTER(block_iter, block, mb_node);
 }
 
+void set_block_allocated(mem_block_t *block) {
+    LIST_REMOVE(block, mb_node);
+    block->mb_size *= -1;
+}
 
-void *give_block_from_chunk(mem_chunk_t *chunk, mem_block_t *block, size_t size) {
-    if(block_may_be_splited(block, size)) {
-        mem_block_t* block_left = split_block(block, size);
-       // set_lower_boundary_tag(block_left, 0);
-       // set_upper_boundary_tag(block, 1);
+void *give_block_from_chunk(mem_block_t *block, size_t size, unsigned allignment) {
+    assert(allign(size, 8u) >= 16);
+    
+    if(is_trimming_needed(block, allignment))
+        block = block_trim(block, size, allignment);
+    assert((uint64_t)block->mb_data % allignment == 0);
 
-        // set boundary tag for upper neighbor of current block
-        if(block >= &chunk->ma_first)
-            *((uint64_t*)block-1) |= 0 << 31;
-        
-        LIST_INSERT_AFTER(block, block_left, mb_node);
-        LIST_REMOVE(block, mb_node);
-
-        return block->mb_data + 1; 
-    } else {
-        // set boundary tags for neighbor blocks
-        if(block >= &chunk->ma_first)
-            *((uint64_t*)block-1) &= 0 << 31;
-        if((uint8_t*) block->mb_data + block->mb_size < (uint8_t*)chunk->ma_first.mb_data + chunk->size)
-            *(uint64_t*)((uint8_t*)block->mb_data + block->mb_size + sizeof(mem_block_t)) &= 0 << 31;
-
-        LIST_REMOVE(block, mb_node);
-
-        return block->mb_data + 1;    
-    }
+    if(block_may_be_splited(block, size)) 
+        split_block(block, size);
+    
+    set_block_allocated(block);
+    return block->mb_data; 
 }
 
 

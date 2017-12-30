@@ -16,6 +16,8 @@ void trim_block_test3();
 void block_may_be_splited_test1();
 void split_block_test1();
 void split_block_test2();
+void give_block_from_chunk_test1();
+void give_block_from_chunk_test2();
 
 void malloc_int();
 
@@ -31,6 +33,8 @@ int main() {
     block_may_be_splited_test1();
     split_block_test1();
     split_block_test2();
+    give_block_from_chunk_test1();
+    give_block_from_chunk_test2();
     return 0;
 }
 
@@ -235,10 +239,56 @@ void split_block_test2() { // wrong test - this block isn't splitable
     free(block);
 }
 
-void malloc_int() {
+void give_block_from_chunk_test1() {
+    printf("Test: give_block_from_chunk_1 - allignment 8\n");
+    LIST_HEAD(, mem_block) mock_freeblks = LIST_HEAD_INITIALIZER(mock_freeblks);
+    LIST_INIT(&mock_freeblks);
+    mem_block_t *block = (mem_block_t*) malloc(500);
+    LIST_INSERT_HEAD(&mock_freeblks, block, mb_node);
+
+    block->mb_size = 256;
+    set_boundary_tag(block);
+
+    void *addr = give_block_from_chunk(block, 104, 8);
+    mem_block_t *block_left = LIST_FIRST(&mock_freeblks);
+
+    munit_assert((void*)block->mb_data == addr);
+    munit_assert_int(block->mb_size, ==, -112);
+    munit_assert_int(*((uint64_t*)addr + 104 / 8), ==, 112); 
+    munit_assert_int(block_left->mb_size, ==, 136);
+    munit_assert_int(*(block_left->mb_data - 2), ==, 112);
+
+    free(block);
+}
+
+void give_block_from_chunk_test2() {
+    printf("Test: give_block_from_chunk_2 - allignment 16\n");
+    LIST_HEAD(, mem_block) mock_freeblks = LIST_HEAD_INITIALIZER(mock_freeblks);
+    LIST_INIT(&mock_freeblks);
+    mem_block_t *block = (mem_block_t*) aligned_alloc(500, 16);
+    LIST_INSERT_HEAD(&mock_freeblks, block, mb_node);
+
+    block->mb_size = 256;
+    set_boundary_tag(block);
+
+    void *addr = give_block_from_chunk(block, 32, 16);
+    mem_block_t *block_after_trimming = LIST_FIRST(&mock_freeblks);
+    mem_block_t *block_left = LIST_NEXT(block_after_trimming, mb_node);
+
+    munit_assert((uint64_t)addr % 16 == 0);
+    munit_assert_int(block_after_trimming->mb_size, ==, 32);
+    munit_assert_int(block_after_trimming->mb_data[block_after_trimming->mb_size / 8 - 1], ==, 32);
+    munit_assert_int(*(int32_t*)(addr - 8), ==, -40);
+    munit_assert_int(*(block_left->mb_data - 2), ==, 40);
+    munit_assert_int(block_left->mb_size, ==, 256 - 88);
+
+    free(block);
+}
+
+/*void malloc_int() {
     printf("Test: malloc_int:\n");    
     int *number = (int*) foo_malloc(sizeof(int));
     *number = 5;
     printf("%d\n", *number);
     mdump(1);
-}
+}*/
