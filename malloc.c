@@ -12,27 +12,30 @@ static LIST_HEAD(, mem_chunk) chunk_list; /* list of all chunks */
 static int malloc_initialised = 0;
 
 /* Implementation of interface: */
-/*
+
 void *foo_malloc(size_t size) {
     if(!malloc_initialised)
         malloc_init();
 
     if(size >= LARGE_THRESHOLD) {
         mem_chunk_t *chunk = allocate_chunk(size);
-        return give_block_from_chunk(chunk, &chunk->ma_first, size);
+        return give_block_from_chunk(&chunk->ma_first, size, DEFAULT_ALIGNMENT);
     }
+
+    if(size < 16)
+        size = 16;
     mem_chunk_t *chunk;
     mem_block_t *block;
     LIST_FOREACH(chunk, &chunk_list, ma_node) {
         LIST_FOREACH(block, &chunk->ma_freeblks, mb_node) {
-            if(block_has_enough_space(block, size, 8)) 
-                return give_block_from_chunk(chunk, block, size);
+            if(block_has_enough_space(block, size, DEFAULT_ALIGNMENT)) 
+                return give_block_from_chunk(block, size, DEFAULT_ALIGNMENT);
         }
     }
 
     chunk = allocate_chunk(NEW_CHUNK_SIZE);
-    return give_block_from_chunk(chunk, &chunk->ma_first, size);
-}*/
+    return give_block_from_chunk(&chunk->ma_first, size, DEFAULT_ALIGNMENT);
+}
 
 /*
 void *calloc(size_t count, size_t size) {

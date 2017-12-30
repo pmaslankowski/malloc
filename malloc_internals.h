@@ -8,6 +8,7 @@
 #define BOUNDARY_TAG_SIZE 8
 #define EOC_SIZE 8
 #define EOC ((int64_t)-1)
+#define DEFAULT_ALIGNMENT 8
 #define MEM_BLOCK_OVERHEAD (sizeof(mem_block_t) - sizeof(LIST_ENTRY(mem_block_t))) // size of memory meta data in mem_block_t
 #define MEM_CHUNK_OVERHEAD (sizeof(mem_chunk_t) - sizeof(LIST_ENTRY(mem_block_t))) // size of memory meta data in mem_chunk_t
 

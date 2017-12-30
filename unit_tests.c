@@ -35,6 +35,7 @@ int main() {
     split_block_test2();
     give_block_from_chunk_test1();
     give_block_from_chunk_test2();
+    malloc_int();
     return 0;
 }
 
@@ -285,10 +286,14 @@ void give_block_from_chunk_test2() {
     free(block);
 }
 
-/*void malloc_int() {
-    printf("Test: malloc_int:\n");    
+/* Functional tests: */
+void malloc_int() {
+    printf("Test: malloc_int\n");    
     int *number = (int*) foo_malloc(sizeof(int));
     *number = 5;
-    printf("%d\n", *number);
-    mdump(1);
-}*/
+    
+    munit_assert_int(*(uint64_t*)(number - 4), ==, EOC);
+    munit_assert_int(*(uint64_t*)(number + 4), ==, 24);
+    
+    //mdump(1);
+}
