@@ -18,6 +18,8 @@ void split_block_test1();
 void split_block_test2();
 void give_block_from_chunk_test1();
 void give_block_from_chunk_test2();
+void is_merge_with_lower_block_possible_test();
+void is_merge_with_higher_block_possible_test();
 
 void malloc_int();
 void posix_memalign_test();
@@ -36,6 +38,9 @@ int main() {
     split_block_test2();
     give_block_from_chunk_test1();
     give_block_from_chunk_test2();
+    is_merge_with_lower_block_possible_test();
+    is_merge_with_higher_block_possible_test();
+
     malloc_int();
     posix_memalign_test();
     return 0;
@@ -286,6 +291,54 @@ void give_block_from_chunk_test2() {
     munit_assert_int(block_left->mb_size, ==, 256 - 88);
 
     free(block);
+}
+
+void is_merge_with_lower_block_possible_test() {
+    printf("Test: is_merge_with_lower_block_possible\n");
+    LIST_HEAD(, mem_block) mock_freeblks = LIST_HEAD_INITIALIZER(mock_freeblks);
+    LIST_INIT(&mock_freeblks);
+    void *addr = malloc(500);
+    *(uint64_t*)addr = EOC;
+    mem_block_t *block1 = (mem_block_t*) (addr+8);
+    block1->mb_size = 128;
+    set_boundary_tag(block1);
+    mem_block_t *block2 = (mem_block_t*) (addr + 8 + MEM_BLOCK_OVERHEAD + 128);
+    block2->mb_size = 104;
+    set_boundary_tag(block2);
+    LIST_INSERT_HEAD(&mock_freeblks, block1, mb_node);
+    LIST_INSERT_AFTER(block1, block2, mb_node);
+    
+    munit_assert_int(is_merge_with_lower_block_possible(block2), ==, 1);
+    munit_assert_int(is_merge_with_lower_block_possible(block1), ==, 0);
+    set_block_allocated(block1);
+    munit_assert_int(is_merge_with_lower_block_possible(block2), ==, 0);
+
+    free(addr);
+}
+
+void is_merge_with_higher_block_possible_test() {
+    printf("Test: is_merge_with_lower_higher_possible\n");
+    LIST_HEAD(, mem_block) mock_freeblks = LIST_HEAD_INITIALIZER(mock_freeblks);
+    LIST_INIT(&mock_freeblks);
+    void *addr = malloc(500);
+    *(uint64_t*)addr = EOC;
+    mem_block_t *block1 = (mem_block_t*) (addr+8);
+    block1->mb_size = 128;
+    set_boundary_tag(block1);
+    mem_block_t *block2 = (mem_block_t*) (addr + 8 + MEM_BLOCK_OVERHEAD + 128);
+    block2->mb_size = 104;
+    set_boundary_tag(block2);
+    block2->mb_data[104/8] = EOC;
+
+    LIST_INSERT_HEAD(&mock_freeblks, block1, mb_node);
+    LIST_INSERT_AFTER(block1, block2, mb_node);
+    
+    munit_assert_int(is_merge_with_higher_block_possible(block1), ==, 1);
+    munit_assert_int(is_merge_with_higher_block_possible(block2), ==, 0);
+    set_block_allocated(block2);
+    munit_assert_int(is_merge_with_lower_block_possible(block1), ==, 0);
+
+    free(addr);
 }
 
 /* Functional tests: */

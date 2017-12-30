@@ -52,5 +52,7 @@ mem_block_t *split_block(mem_block_t *block, size_t size);
 void set_block_allocated(mem_block_t *block);
 void *give_block_from_chunk(mem_block_t *block, size_t size, unsigned allignment);
 void chunk_add_free_block(mem_chunk_t *chunk, mem_block_t *block);
+int is_merge_with_higher_block_possible(mem_block_t *block);
+int is_merge_with_lower_block_possible(mem_block_t *block);
 
 #endif

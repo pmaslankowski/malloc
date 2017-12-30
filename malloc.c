@@ -262,5 +262,16 @@ void *give_block_from_chunk(mem_block_t *block, size_t size, unsigned allignment
     return block->mb_data; 
 }
 
+int is_merge_with_higher_block_possible(mem_block_t *block) {
+    int64_t higher_block_size = (int64_t)block->mb_data[block->mb_size / 8];
+    return higher_block_size > 0; // EOF = -1 < 0
+}
 
+int is_merge_with_lower_block_possible(mem_block_t *block) {
+    int64_t boundary_tag = *((int64_t*)block - 1);
+    if(boundary_tag == EOC)
+        return 0;
+    int32_t lower_block_size = *(int32_t*)((int64_t*)block-1-(boundary_tag/8-1)-1);
+    return lower_block_size > 0;
+}
 
