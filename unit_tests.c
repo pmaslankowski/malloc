@@ -20,6 +20,7 @@ void give_block_from_chunk_test1();
 void give_block_from_chunk_test2();
 
 void malloc_int();
+void posix_memalign_test();
 
 int main() {
     allocate_chunk_test();
@@ -36,6 +37,7 @@ int main() {
     give_block_from_chunk_test1();
     give_block_from_chunk_test2();
     malloc_int();
+    posix_memalign_test();
     return 0;
 }
 
@@ -294,6 +296,15 @@ void malloc_int() {
     
     munit_assert_int(*(uint64_t*)(number - 4), ==, EOC);
     munit_assert_int(*(uint64_t*)(number + 4), ==, 24);
-    
     //mdump(1);
+}
+
+void posix_memalign_test() {
+    printf("Test: posix_memalign - allignment 16\n");
+    void *addr;
+    int res = foo_posix_memalign(&addr, 16, 4000);
+
+    munit_assert_int(res, ==, 0);
+    munit_assert((uint64_t) addr % 16 == 0);
+    munit_assert_int(*(int32_t*)(addr - 8), ==, -4008);
 }

@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include "malloc.h"
 #include "malloc_internals.h"
@@ -46,13 +47,40 @@ void *calloc(size_t count, size_t size) {
 void *realloc(void *ptr, size_t size) {
 
 }
+*/
 
+int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
+    if(!malloc_initialised)
+        malloc_init();
+    if (alignment % sizeof(void*) != 0 || (alignment & (alignment-1)) != 0)
+        return EINVAL;
 
-int posix_memalign(void **memptr, size_t alignment, size_t size) {
+    size_t size_and_alignment = size + 2 * alignment; // 2*alignment is enough when alignment = 16, so it should be enough whene alignment > 16
+    if(size>= LARGE_THRESHOLD) {
+        mem_chunk_t *chunk = allocate_chunk(size_and_alignment);
+        *memptr = give_block_from_chunk(&chunk->ma_first, size, alignment);
+        return 0;
+    }
 
+    if(size < 16)
+        size = 16;
+    mem_chunk_t *chunk;
+    mem_block_t *block;
+    LIST_FOREACH(chunk, &chunk_list, ma_node) {
+        LIST_FOREACH(block, &chunk->ma_freeblks, mb_node) {
+            if(block_has_enough_space(block, size, alignment)) {
+                *memptr = give_block_from_chunk(block, size, alignment);
+                return 0;
+            }
+        }
+    }
+
+    chunk = allocate_chunk(NEW_CHUNK_SIZE);
+    *memptr = give_block_from_chunk(&chunk->ma_first, size, alignment); 
+    return 0;
 }
 
-
+/*
 void free(void *ptr) {
 
 }*/
