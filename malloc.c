@@ -96,6 +96,8 @@ void foo_free(void *ptr) { //TODO: check for unmap
             set_boundary_tag(lower_block);
             LIST_REMOVE(higher_block, mb_node);
         }
+        if(is_unmap_needed(lower_block))
+            free_chunk_by_block(lower_block);    
         return;
     }
 
@@ -105,12 +107,16 @@ void foo_free(void *ptr) { //TODO: check for unmap
         set_boundary_tag(block);
         LIST_INSERT_BEFORE(higher_block, block, mb_node);
         LIST_REMOVE(higher_block, mb_node);
+        if(is_unmap_needed(block))
+            free_chunk_by_block(block);
         return;
     }
 
     // merge is not possible, so find proper place in list and insert there processed block
     mem_chunk_t *chunk = get_chunk_of(ptr);
     chunk_add_free_block(chunk, block);
+    if(is_unmap_needed(block))
+        free_chunk(chunk);
 }
 
 
@@ -334,4 +340,23 @@ mem_chunk_t *get_chunk_of(void *addr) {
     }
     assert(0); // bad pointer
     return NULL;
+}
+
+// untested functions: (!)
+int is_unmap_needed(mem_block_t *block) {
+    return !has_higher_block(block) && !has_lower_block(block);
+}
+
+void free_chunk(mem_chunk_t *chunk) {
+    LIST_REMOVE(chunk, ma_node);
+    munmap(chunk, chunk->size + MEM_CHUNK_OVERHEAD + EOC_SIZE);
+}
+
+// function analogical to free_chunk, but takes block, not chunk as argument
+// assumptions: block is the only block in chunk
+void free_chunk_by_block(mem_block_t *block) {
+    assert(!has_higher_block(block));
+    assert(!has_lower_block(block));
+    mem_chunk_t *chunk = (void*) block + MEM_BLOCK_OVERHEAD - MEM_CHUNK_OVERHEAD;
+    free_chunk(chunk); 
 }

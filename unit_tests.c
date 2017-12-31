@@ -410,10 +410,11 @@ void posix_memalign_test() {
 }
 
 void free_test() {
-    printf("Test: free");
+    printf("Test: free_1");
     malloc_init();
     void *addr1 = foo_malloc(4);
     void *addr2 = foo_malloc(4);
     foo_free(addr2);
+    foo_free(addr1);
     mdump(1);
 }
