@@ -80,29 +80,38 @@ int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
     return 0;
 }
 
-/*
-void free(void *ptr) {
-    mem_block_t *block = (mem_block_t*) (ptr - 8);
+
+void foo_free(void *ptr) { //TODO: check for unmap
+    mem_block_t *block = (mem_block_t*) (ptr - MEM_BLOCK_OVERHEAD);
     assert(block->mb_size < 0);
     block->mb_size *= -1;
-    if(!is_merge_with_lower_block_possible(block) && !is_merge_with_higher_block_possible(block)) {
-        // find proper place in list and set block free
+
+    if(is_merge_with_lower_block_possible(block)) {
+        mem_block_t *lower_block = get_lower_block(block);
+        lower_block->mb_size += block->mb_size + MEM_BLOCK_OVERHEAD;
+        set_boundary_tag(lower_block);
+        if(is_merge_with_higher_block_possible(lower_block)) {
+            mem_block_t *higher_block = get_higher_block(block);
+            lower_block->mb_size += higher_block->mb_size + MEM_BLOCK_OVERHEAD;
+            set_boundary_tag(lower_block);
+            LIST_REMOVE(higher_block, mb_node);
+        }
         return;
     }
 
-    if(is_merge_with_lower_block_possible(block)) { // merge block with lower block
-        mem_block_t *lower_block = get_lower_block(block);
-            lower_block->mb_size += block->mb_size + MEM_BLOCK_OVERHEAD;
-        
+    if(is_merge_with_higher_block_possible(block)) {
+        mem_block_t *higher_block = get_higher_block(block);
+        block->mb_size += higher_block->mb_size + MEM_BLOCK_OVERHEAD;
+        set_boundary_tag(block);
+        LIST_INSERT_BEFORE(higher_block, block, mb_node);
+        LIST_REMOVE(higher_block, mb_node);
+        return;
     }
 
-    if(has_higher_block(block) {
-        mem_block_t *higher_block = get_higher_block(block);
-        if(higher_block->mb_size > 0) {
-
-        }
-    })
-}*/
+    // merge is not possible, so find proper place in list and insert there processed block
+    mem_chunk_t *chunk = get_chunk_of(ptr);
+    chunk_add_free_block(chunk, block);
+}
 
 
 void mdump(int verbose) {
@@ -254,7 +263,7 @@ mem_block_t *split_block(mem_block_t *block, size_t size) {
 void chunk_add_free_block(mem_chunk_t *chunk, mem_block_t *block) {
     mem_block_t *block_iter;
     LIST_FOREACH(block_iter, &chunk->ma_freeblks, mb_node) {
-        if(block >= block_iter) {
+        if(block_iter >= block) {
             LIST_INSERT_BEFORE(block_iter, block, mb_node);
             return;
         }

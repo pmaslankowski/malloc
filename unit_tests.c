@@ -26,6 +26,7 @@ void is_addr_in_chunk_test();
 
 void malloc_int();
 void posix_memalign_test();
+void free_test();
 
 int main() {
     allocate_chunk_test();
@@ -49,6 +50,8 @@ int main() {
 
     malloc_int();
     posix_memalign_test();
+    free_test();
+
     return 0;
 }
 
@@ -404,4 +407,13 @@ void posix_memalign_test() {
     munit_assert_int(res, ==, 0);
     munit_assert((uint64_t) addr % 16 == 0);
     munit_assert_int(*(int32_t*)(addr - 8), ==, -4008);
+}
+
+void free_test() {
+    printf("Test: free");
+    malloc_init();
+    void *addr1 = foo_malloc(4);
+    void *addr2 = foo_malloc(4);
+    foo_free(addr2);
+    mdump(1);
 }
