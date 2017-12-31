@@ -56,6 +56,8 @@ int has_lower_block(mem_block_t *block);
 int has_higher_block(mem_block_t *block);
 mem_block_t *get_lower_block(mem_block_t *block);
 mem_block_t *get_higher_block(mem_block_t *block);
-
+int is_merge_with_lower_block_possible(mem_block_t *block);
+int is_merge_with_higher_block_possible(mem_block_t *block);
+int is_addr_in_chunk(mem_chunk_t *chunk, void *addr);
 
 #endif

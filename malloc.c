@@ -82,7 +82,26 @@ int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
 
 /*
 void free(void *ptr) {
+    mem_block_t *block = (mem_block_t*) (ptr - 8);
+    assert(block->mb_size < 0);
+    block->mb_size *= -1;
+    if(!is_merge_with_lower_block_possible(block) && !is_merge_with_higher_block_possible(block)) {
+        // find proper place in list and set block free
+        return;
+    }
 
+    if(is_merge_with_lower_block_possible(block)) { // merge block with lower block
+        mem_block_t *lower_block = get_lower_block(block);
+            lower_block->mb_size += block->mb_size + MEM_BLOCK_OVERHEAD;
+        
+    }
+
+    if(has_higher_block(block) {
+        mem_block_t *higher_block = get_higher_block(block);
+        if(higher_block->mb_size > 0) {
+
+        }
+    })
 }*/
 
 
@@ -283,4 +302,27 @@ mem_block_t *get_higher_block(mem_block_t *block) {
 mem_block_t *get_lower_block(mem_block_t *block) {
     int64_t boundary_tag = *((int64_t*)block - 1);
     return (mem_block_t*)((int64_t*)block-1-(boundary_tag/8-1)-1);
+}
+
+int is_merge_with_lower_block_possible(mem_block_t *block) {
+    return has_lower_block(block) && get_lower_block(block)->mb_size > 0;
+}
+
+int is_merge_with_higher_block_possible(mem_block_t *block) {
+    return has_higher_block(block) && get_higher_block(block)->mb_size > 0;
+}
+
+//this function could possibly be better - it could detect invalid pointers to memory at the end of the chunk
+int is_addr_in_chunk(mem_chunk_t *chunk, void *addr) {
+    return addr >= (void*)chunk->ma_first.mb_data && addr < (void*)chunk->ma_first.mb_data + chunk->size;
+}
+
+mem_chunk_t *get_chunk_of(void *addr) {
+    mem_chunk_t *chunk;
+    LIST_FOREACH(chunk, &chunk_list, ma_node) {
+        if(is_addr_in_chunk(chunk, addr))
+            return chunk;
+    }
+    assert(0); // bad pointer
+    return NULL;
 }

@@ -22,6 +22,7 @@ void has_lower_block_test();
 void has_higher_block_test();
 void get_lower_block_test();
 void get_higher_block_test();
+void is_addr_in_chunk_test();
 
 void malloc_int();
 void posix_memalign_test();
@@ -44,6 +45,7 @@ int main() {
     has_higher_block_test();
     get_lower_block_test();
     get_higher_block_test();
+    is_addr_in_chunk_test();
 
     malloc_int();
     posix_memalign_test();
@@ -369,6 +371,19 @@ void get_higher_block_test() {
     free(addr);
 }
 
+void is_addr_in_chunk_test() {
+    printf("Test: is_addr_in_chunk\n");
+    mem_chunk_t *chunk = malloc(128 + MEM_CHUNK_OVERHEAD);
+    chunk->size = 128;
+
+    munit_assert_int(is_addr_in_chunk(chunk, chunk->ma_first.mb_data), ==, 1);
+    munit_assert_int(is_addr_in_chunk(chunk, chunk->ma_first.mb_data + 64 / 8), ==, 1);
+    munit_assert_int(is_addr_in_chunk(chunk, chunk->ma_first.mb_data + 128 / 8 - 1), ==, 1);
+    munit_assert_int(is_addr_in_chunk(chunk, chunk->ma_first.mb_data + 128 / 8), ==, 0);
+    munit_assert_int(is_addr_in_chunk(chunk, chunk->ma_first.mb_data + 160 / 8), ==, 0);
+
+    free(chunk);
+}
 
 /* Functional tests: */
 void malloc_int() {
