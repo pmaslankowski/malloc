@@ -2,6 +2,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <assert.h>
+#include <string.h>
 #include <stdio.h>
 #include <errno.h>
 
@@ -38,12 +39,16 @@ void *foo_malloc(size_t size) {
     return give_block_from_chunk(&chunk->ma_first, size, DEFAULT_ALIGNMENT);
 }
 
-/*
-void *calloc(size_t count, size_t size) {
 
+void *foo_calloc(size_t count, size_t size) {
+    if(count == 0)
+        return NULL;
+    void *ptr = foo_malloc(count * size);
+    memset(ptr, 0, count * size);
+    return ptr;
 }
 
-
+/*
 void *realloc(void *ptr, size_t size) {
 
 }
