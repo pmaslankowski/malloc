@@ -342,7 +342,11 @@ mem_chunk_t *get_chunk_of(void *addr) {
     return NULL;
 }
 
+<<<<<<< HEAD
 // untested functions: (but they probably work)
+=======
+// untested functions: (!)
+>>>>>>> c78f83b74ffbf33cb5290fed478ca85859d31237
 int is_unmap_needed(mem_block_t *block) {
     return !has_higher_block(block) && !has_lower_block(block);
 }
