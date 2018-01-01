@@ -63,5 +63,8 @@ mem_chunk_t *get_chunk_of(void *addr);
 int is_unmap_needed(mem_block_t *block);
 void free_chunk(mem_chunk_t *chunk);
 void free_chunk_by_block(mem_block_t *block);
+int compare_block_sizes(mem_block_t *block, int64_t size);
+int is_shrink_possible(mem_block_t *block, int64_t size);
+void shrink_block(mem_block_t *block, int64_t size);
 
 #endif

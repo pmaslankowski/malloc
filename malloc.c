@@ -48,11 +48,19 @@ void *foo_calloc(size_t count, size_t size) {
     return ptr;
 }
 
-/*
-void *realloc(void *ptr, size_t size) {
 
-}
-*/
+/*void *foo_realloc(void *ptr, size_t size) {
+    mem_block_t* block = (mem_block_t*) (ptr - MEM_BLOCK_OVERHEAD);
+    assert(block->mb_size < 0);
+    if(size < -block->mb_size - BOUNDARY_TAG_SIZE) {
+
+    }
+    if(has_higher_block(block)) {
+        mem_block_t *higher_block = get_higher_block(block);
+        if(-)
+    }
+}*/
+
 
 int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
     if(!malloc_initialised)
@@ -251,7 +259,7 @@ mem_block_t *block_trim(mem_block_t *block, size_t size, unsigned allignment) {
 
 int block_may_be_splited(mem_block_t *block, size_t size) {
     assert(allign(size, 8u) >= 16);
-    return (uint64_t) block->mb_size >= allign(size, 8u) + BOUNDARY_TAG_SIZE +  sizeof(mem_block_t); // true if there is enough space to split block
+    return (uint64_t) block->mb_size >= allign(size, 8u) + BOUNDARY_TAG_SIZE +  sizeof(mem_block_t) + BOUNDARY_TAG_SIZE; // true if there is enough space to split block
 }
 
 /* Function splits current block and returns a block consisting space which left after split.
@@ -364,4 +372,45 @@ void free_chunk_by_block(mem_block_t *block) {
     assert(!has_lower_block(block));
     mem_chunk_t *chunk = (void*) block + MEM_BLOCK_OVERHEAD - MEM_CHUNK_OVERHEAD;
     free_chunk(chunk); 
+}
+
+// returns block - size
+// assumption: block cannot be free
+int compare_block_sizes(mem_block_t *block, int64_t size) {
+    assert(block->mb_size < 0); // this function should be used only on allocated blocks
+    int64_t block_size = -block->mb_size;
+    return block_size - BOUNDARY_TAG_SIZE - size;
+}
+
+int is_shrink_possible(mem_block_t *block, int64_t size) {
+    assert(block->mb_size < 0);
+    block->mb_size *= -1;
+    int result = block_may_be_splited(block, size);
+    block->mb_size *= -1;
+    return result;
+}
+
+void shrink_block(mem_block_t *block, int64_t size) {
+    assert(block->mb_size < 0);
+    int64_t aligned_size = allign(size, 8);
+    assert(aligned_size >= 16);
+    
+    mem_block_t* block_left = (mem_block_t*) ((uint8_t*)block->mb_data + aligned_size + BOUNDARY_TAG_SIZE);
+    block_left->mb_size = -block->mb_size - aligned_size - BOUNDARY_TAG_SIZE - MEM_BLOCK_OVERHEAD;
+    set_boundary_tag(block_left);
+
+    block->mb_size = aligned_size + BOUNDARY_TAG_SIZE;
+    set_boundary_tag(block);
+    block->mb_size *= -1;
+
+    if(is_merge_with_higher_block_possible(block_left)) {
+        mem_block_t *higher_block = get_higher_block(block_left);
+        block_left->mb_size += higher_block->mb_size + MEM_BLOCK_OVERHEAD;
+        set_boundary_tag(block_left);
+        LIST_INSERT_BEFORE(higher_block, block_left, mb_node);
+        LIST_REMOVE(higher_block, mb_node);
+    } else {
+        mem_chunk_t *chunk = get_chunk_of((void*)block_left + MEM_BLOCK_OVERHEAD);
+        chunk_add_free_block(chunk, block_left);
+    }
 }

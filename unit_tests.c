@@ -23,6 +23,9 @@ void has_higher_block_test();
 void get_lower_block_test();
 void get_higher_block_test();
 void is_addr_in_chunk_test();
+void compare_block_sizes_test();
+void shrink_block_test1();
+void shrink_block_test2();
 
 void malloc_int();
 void posix_memalign_test();
@@ -48,6 +51,9 @@ int main() {
     get_lower_block_test();
     get_higher_block_test();
     is_addr_in_chunk_test();
+    compare_block_sizes_test();
+    shrink_block_test1();
+    shrink_block_test2();
 
     malloc_int();
     posix_memalign_test();
@@ -208,8 +214,8 @@ void block_may_be_splited_test1() {
     block->mb_size = 64;
 
     munit_assert_int(block_may_be_splited(block, 24), ==, 1);
-    munit_assert_int(block_may_be_splited(block, 29), ==, 1);
-    munit_assert_int(block_may_be_splited(block, 32), ==, 1);
+    munit_assert_int(block_may_be_splited(block, 29), ==, 0);
+    munit_assert_int(block_may_be_splited(block, 32), ==, 0);
     munit_assert_int(block_may_be_splited(block, 33), ==, 0);
     munit_assert_int(block_may_be_splited(block, 39), ==, 0);
 
@@ -390,9 +396,65 @@ void is_addr_in_chunk_test() {
     free(chunk);
 }
 
+void compare_block_sizes_test() {
+    printf("Test: compare_block_sizes\n");
+    mem_block_t *block = (mem_block_t*) malloc(100);    
+    block->mb_size = 40;
+    set_boundary_tag(block);
+    block->mb_size *= -1;
+
+    munit_assert(compare_block_sizes(block, 24) > 0);
+    munit_assert(compare_block_sizes(block, 30) > 0);
+    munit_assert(compare_block_sizes(block, 32) == 0);
+    munit_assert(compare_block_sizes(block, 33) < 0);
+    munit_assert(compare_block_sizes(block, 40) < 0);
+
+    free(block);
+}
+
+void shrink_block_test1() {
+    printf("Test: shrink_block_1\n");
+    mem_chunk_t *chunk = allocate_chunk(4000);
+    mem_block_t *block1 = (mem_block_t*)(give_block_from_chunk(&chunk->ma_first, 64, 8) - MEM_BLOCK_OVERHEAD);
+    mem_block_t *block2 = (mem_block_t*)(give_block_from_chunk(LIST_FIRST(&chunk->ma_freeblks), 32, 8) - MEM_BLOCK_OVERHEAD);
+
+    shrink_block(block1, 32);
+
+    munit_assert_int(block1->mb_size, ==, -40);
+    munit_assert_int(block1->mb_data[-block1->mb_size / 8 -1], ==, 40);
+    mem_block_t *block_free = LIST_FIRST(&chunk->ma_freeblks);
+    munit_assert((void*)block_free == (void*)(block1->mb_data + (-block1->mb_size / 8)));
+    munit_assert_int(block_free->mb_size, ==, 24);
+    munit_assert_int(block_free->mb_data[block_free->mb_size / 8 - 1], ==, 24);
+    munit_assert((void*)block2 == (void*)(block_free->mb_data + block_free->mb_size / 8));
+    munit_assert_int(block2->mb_size, ==, -40);
+    munit_assert_int(block2->mb_data[-block2->mb_size / 8 - 1], ==, 40);
+    mem_block_t *block_free2 = LIST_NEXT(block_free, mb_node);
+    munit_assert((void*)block_free2 == (void*)(block2->mb_data + (-block2->mb_size / 8)));
+    munit_assert_int(block_free2->mb_size, ==, 4040 - 128);
+    munit_assert_int(block_free2->mb_data[block_free2->mb_size / 8 - 1], ==, 4040 - 128);
+}
+
+void shrink_block_test2() {
+    printf("Test: shrink_block_2\n");
+    malloc_init();
+    mem_chunk_t *chunk = allocate_chunk(4000);
+    mem_block_t *block1 = (mem_block_t*)(give_block_from_chunk(&chunk->ma_first, 64, 8) - MEM_BLOCK_OVERHEAD);
+
+    shrink_block(block1, 24);
+
+    munit_assert_int(block1->mb_size, ==, -32);
+    munit_assert_int(block1->mb_data[-block1->mb_size / 8 -1], ==, 32);
+    mem_block_t *block_free = LIST_FIRST(&chunk->ma_freeblks);
+    munit_assert((void*)block_free == (void*)(block1->mb_data + (-block1->mb_size / 8)));
+    munit_assert_int(block_free->mb_size, ==, 4000);
+    munit_assert_int(block_free->mb_data[block_free->mb_size / 8 - 1], ==, 4000);
+}
+
 /* Functional tests: */
 void malloc_int() {
-    printf("Test: malloc_int\n");    
+    printf("Test: malloc_int\n");  
+    malloc_init();  
     int *number = (int*) foo_malloc(sizeof(int));
     *number = 5;
     
