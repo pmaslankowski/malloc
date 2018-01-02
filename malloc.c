@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <pthread.h>
 
 #include "malloc.h"
 #include "malloc_internals.h"
@@ -13,15 +14,20 @@
 static LIST_HEAD(, mem_chunk) chunk_list; /* list of all chunks */
 static int malloc_initialised = 0;
 
+static pthread_mutex_t malloc_mutex;
+static pthread_mutexattr_t malloc_mutexattr;
+
 /* Implementation of interface: */
 
 void *foo_malloc(size_t size) {
+    ENTER_AND_LOCK(malloc, malloc_mutex);
+    DEBUG_VAL(size, "%s = %lu\n");
     if(!malloc_initialised)
         malloc_init();
 
     if(size >= LARGE_THRESHOLD) {
-        mem_chunk_t *chunk = allocate_chunk(size);
-        return give_block_from_chunk(&chunk->ma_first, size, DEFAULT_ALIGNMENT);
+        mem_chunk_t *chunk = allocate_chunk(allign(size, 8));
+        return return_from_malloc(give_block_from_chunk(&chunk->ma_first, allign(size, 8), DEFAULT_ALIGNMENT));
     }
 
     if(size < 16)
@@ -31,62 +37,85 @@ void *foo_malloc(size_t size) {
     LIST_FOREACH(chunk, &chunk_list, ma_node) {
         LIST_FOREACH(block, &chunk->ma_freeblks, mb_node) {
             if(block_has_enough_space(block, size, DEFAULT_ALIGNMENT)) 
-                return give_block_from_chunk(block, size, DEFAULT_ALIGNMENT);
+                return return_from_malloc(give_block_from_chunk(block, size, DEFAULT_ALIGNMENT));
         }
     }
 
     chunk = allocate_chunk(NEW_CHUNK_SIZE);
-    return give_block_from_chunk(&chunk->ma_first, size, DEFAULT_ALIGNMENT);
+    return return_from_malloc(give_block_from_chunk(&chunk->ma_first, size, DEFAULT_ALIGNMENT));
 }
 
 
 void *foo_calloc(size_t count, size_t size) {
+    ENTER_AND_LOCK(calloc, malloc_mutex);
     if(count == 0)
-        return NULL;
+        RETURN_WITH_TRACE_AND_UNLOCK(calloc, malloc_mutex, NULL);
     void *ptr = foo_malloc(count * size);
     memset(ptr, 0, count * size);
-    return ptr;
+    RETURN_WITH_TRACE_AND_UNLOCK(calloc, malloc_mutex, ptr);
 }
 
 
 void *foo_realloc(void *ptr, size_t size) {
+    ENTER_AND_LOCK(realloc, malloc_mutex);
+    if(MALLOC_DEBUG) 
+        fprintf(stderr, "ptr = %p\n", ptr);
+    
+    if(ptr == NULL)
+        RETURN_WITH_TRACE_AND_UNLOCK(realloc, malloc_mutex, foo_malloc(size));
+    
     mem_block_t* block = (mem_block_t*) (ptr - MEM_BLOCK_OVERHEAD);
     assert(block->mb_size < 0);
+    if(MALLOC_DEBUG) fprintf(stderr, "block->mb_size = %d, size = %lu\n", block->mb_size, size);
     int comparison = compare_block_sizes(block, size);
-    if(comparison == 0) 
-        return ptr; //no need to reallocate
+    if(comparison == 0) {
+        if(MALLOC_DEBUG) fprintf(stderr, "no need to realocate\n");
+        RETURN_WITH_TRACE_AND_UNLOCK(realloc, malloc_mutex, ptr); //no need to reallocate
+    }
     if(comparison < 0) {
+        if(comparison >= -8) // because of problems with mb_node in new block
+            size += 8;
+
         if(is_block_extension_possible(block, size)) {
-            if(is_extension_with_split_possible(block, size))
+            if(is_extension_with_split_possible(block, size)) {
+                if(MALLOC_DEBUG) fprintf(stderr, "Extension with split\n");
                 extend_block_with_split(block, size);
-            else
+            } else {
+                if(MALLOC_DEBUG) fprintf(stderr, "Extension without split\n");
                 extend_block_without_split(block, size);
-            return ptr;
+            }
+            RETURN_WITH_TRACE_AND_UNLOCK(realloc, malloc_mutex, ptr);
         } else {
+            if(MALLOC_DEBUG) fprintf(stderr, "extension is impossible. Reallocating in another place\n");
             void *new_ptr = foo_malloc(size);
             memcpy(new_ptr, ptr, -block->mb_size - BOUNDARY_TAG_SIZE);
             foo_free(ptr);
-            return new_ptr;
+            RETURN_WITH_TRACE_AND_UNLOCK(realloc, malloc_mutex, new_ptr);
         }
     } else {
-        if(is_shrink_possible(block, size))
+        if(allign(size, 8u) < 16)
+            size = 16;
+        if(is_shrink_possible(block, size)) {
+            if(MALLOC_DEBUG) fprintf(stderr, "Shrinking is possible\n");
             shrink_block(block, size);
-        return ptr;
+        }
+        RETURN_WITH_TRACE_AND_UNLOCK(realloc, malloc_mutex, ptr);
     }
 }
 
 
 int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
+    ENTER_AND_LOCK(foo_posix_memalign, malloc_mutex);
     if(!malloc_initialised)
         malloc_init();
     if (alignment % sizeof(void*) != 0 || (alignment & (alignment-1)) != 0)
-        return EINVAL;
+        RETURN_WITH_TRACE_AND_UNLOCK(foo_posix_memalign, malloc_mutex, EINVAL);
 
     size_t size_and_alignment = size + 2 * alignment; // 2*alignment is enough when alignment = 16, so it should be enough whene alignment > 16
     if(size>= LARGE_THRESHOLD) {
         mem_chunk_t *chunk = allocate_chunk(size_and_alignment);
         *memptr = give_block_from_chunk(&chunk->ma_first, size, alignment);
-        return 0;
+        RETURN_WITH_TRACE_AND_UNLOCK(foo_posix_memalign, malloc_mutex, 0);
     }
 
     if(size < 16)
@@ -97,18 +126,27 @@ int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
         LIST_FOREACH(block, &chunk->ma_freeblks, mb_node) {
             if(block_has_enough_space(block, size, alignment)) {
                 *memptr = give_block_from_chunk(block, size, alignment);
-                return 0;
+                RETURN_WITH_TRACE_AND_UNLOCK(foo_posix_memalign, malloc_mutex, 0);
             }
         }
     }
 
     chunk = allocate_chunk(NEW_CHUNK_SIZE);
     *memptr = give_block_from_chunk(&chunk->ma_first, size, alignment); 
-    return 0;
+    RETURN_WITH_TRACE_AND_UNLOCK(foo_posix_memalign, malloc_mutex, 0);
 }
 
 
-void foo_free(void *ptr) { //TODO: check for unmap
+void foo_free(void *ptr) { 
+    ENTER_AND_LOCK(free, malloc_mutex);
+    if(MALLOC_DEBUG) 
+        fprintf(stderr, "ptr = %p\n", ptr);
+    
+    if(ptr == NULL) {
+        EXIT_AND_UNLOCK(free, malloc_mutex);
+        return;
+    }
+
     mem_block_t *block = (mem_block_t*) (ptr - MEM_BLOCK_OVERHEAD);
     assert(block->mb_size < 0);
     block->mb_size *= -1;
@@ -124,7 +162,8 @@ void foo_free(void *ptr) { //TODO: check for unmap
             LIST_REMOVE(higher_block, mb_node);
         }
         if(is_unmap_needed(lower_block))
-            free_chunk_by_block(lower_block);    
+            free_chunk_by_block(lower_block);  
+        EXIT_AND_UNLOCK(free, malloc_mutex);  
         return;
     }
 
@@ -136,6 +175,7 @@ void foo_free(void *ptr) { //TODO: check for unmap
         LIST_REMOVE(higher_block, mb_node);
         if(is_unmap_needed(block))
             free_chunk_by_block(block);
+        EXIT_AND_UNLOCK(free, malloc_mutex);
         return;
     }
 
@@ -144,6 +184,7 @@ void foo_free(void *ptr) { //TODO: check for unmap
     chunk_add_free_block(chunk, block);
     if(is_unmap_needed(block))
         free_chunk(chunk);
+    EXIT_AND_UNLOCK(free, malloc_mutex);
 }
 
 
@@ -176,6 +217,9 @@ void mdump(int verbose) {
 void malloc_init() {
     malloc_initialised = 1;
     LIST_INIT(&chunk_list);
+    assert(pthread_mutexattr_init(&malloc_mutexattr) == 0);
+    assert(pthread_mutexattr_settype(&malloc_mutexattr, PTHREAD_MUTEX_ERRORCHECK) == 0);
+    pthread_mutex_init(&malloc_mutex, &malloc_mutexattr);
 }
 
 
@@ -294,14 +338,21 @@ mem_block_t *split_block(mem_block_t *block, size_t size) {
 
 
 void chunk_add_free_block(mem_chunk_t *chunk, mem_block_t *block) {
+    if(LIST_EMPTY(&chunk->ma_freeblks)) {
+        LIST_INSERT_HEAD(&chunk->ma_freeblks, block, mb_node);
+        return;
+    }
     mem_block_t *block_iter;
     LIST_FOREACH(block_iter, &chunk->ma_freeblks, mb_node) {
         if(block_iter >= block) {
             LIST_INSERT_BEFORE(block_iter, block, mb_node);
             return;
         }
+        if(LIST_NEXT(block_iter, mb_node) == NULL) {
+            LIST_INSERT_AFTER(block_iter, block, mb_node);
+            return;
+        }
     }
-    LIST_INSERT_AFTER(block_iter, block, mb_node);
 }
 
 void set_block_allocated(mem_block_t *block) {
@@ -398,6 +449,7 @@ int compare_block_sizes(mem_block_t *block, int64_t size) {
 
 int is_shrink_possible(mem_block_t *block, int64_t size) {
     assert(block->mb_size < 0);
+    assert(allign(size, 8u) >= 16);
     block->mb_size *= -1;
     int result = block_may_be_splited(block, size);
     block->mb_size *= -1;
@@ -431,7 +483,6 @@ void shrink_block(mem_block_t *block, int64_t size) {
 
 int is_block_extension_possible(mem_block_t *block, int64_t size) {
     assert(block->mb_size < 0);
-    assert(-block->mb_size < size); // we indeed need to extend this block
     int64_t aligned_size = allign(size, 8);
     assert(aligned_size >= 16);
     if(!has_higher_block(block))
@@ -443,7 +494,6 @@ int is_block_extension_possible(mem_block_t *block, int64_t size) {
 
 int is_extension_with_split_possible(mem_block_t *block, int64_t size) {
     assert(block->mb_size < 0);
-    assert(-block->mb_size < size); // we indeed need to extend this block
     int64_t aligned_size = allign(size, 8);
     assert(aligned_size >= 16);
     if(!has_higher_block(block))
@@ -455,7 +505,6 @@ int is_extension_with_split_possible(mem_block_t *block, int64_t size) {
 
 void extend_block_without_split(mem_block_t *block, int64_t size) {
     assert(block->mb_size < 0);
-    assert(-block->mb_size < size);
     int64_t aligned_size = allign(size, 8);
     assert(aligned_size >= 16);
 
@@ -470,13 +519,16 @@ void extend_block_without_split(mem_block_t *block, int64_t size) {
 
 void extend_block_with_split(mem_block_t *block, int64_t size) {
     assert(block->mb_size < 0);
-    assert(-block->mb_size < size);
     int64_t aligned_size = allign(size, 8);
     assert(aligned_size >= 16);
 
     int64_t block_size = -block->mb_size;
     mem_block_t *higher_block = get_higher_block(block);
     mem_block_t *block_left = (mem_block_t*)((void*)block->mb_data + aligned_size + BOUNDARY_TAG_SIZE);
+
+    LIST_INSERT_AFTER(higher_block, block_left, mb_node);
+    LIST_REMOVE(higher_block, mb_node);
+
     block_left->mb_size = block_size + higher_block->mb_size - aligned_size - BOUNDARY_TAG_SIZE;
     set_boundary_tag(block_left);
 
@@ -484,6 +536,12 @@ void extend_block_with_split(mem_block_t *block, int64_t size) {
     set_boundary_tag(block);
     block->mb_size *= -1;
     
-    LIST_INSERT_AFTER(higher_block, block_left, mb_node);
-    LIST_REMOVE(higher_block, mb_node);
+    // SEGFAULT HERE!
+}
+
+void *return_from_malloc(void *addr) {
+    if(MALLOC_DEBUG) 
+        fprintf(stderr, "Returning from malloc: %p\n", addr);
+    pthread_mutex_unlock(&malloc_mutex);
+    return addr;
 }

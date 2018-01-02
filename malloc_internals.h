@@ -4,6 +4,7 @@
 
 #include <sys/queue.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #define BOUNDARY_TAG_SIZE 8
 #define EOC_SIZE 8
@@ -15,6 +16,44 @@
 #define DEBUG_ULONG(x) printf("%s = %lu\n", #x, x) 
 #define DEBUG_INT(x) printf("%s = %d\n", #x, x)
 #define DEBUG_LONG(x) printf("%s = %ld\n", #x, x)
+
+
+#define ENTER_AND_LOCK(fun, mutex)                          \
+    {                                                       \
+        if(MALLOC_DEBUG) {                                  \
+            fprintf(stderr, "Entering %s\n", #fun);         \
+            fflush(stderr);                                 \
+        }                                                   \
+        pthread_mutex_lock(&mutex);                         \
+    }
+
+#define EXIT_AND_UNLOCK(fun, mutex)                         \
+    {                                                       \
+        if(MALLOC_DEBUG) {                                  \
+            fprintf(stderr, "Exiting %s\n", #fun);          \
+            fflush(stderr);                                 \
+        }                                                   \
+        pthread_mutex_unlock(&mutex);                       \
+    }
+
+#define RETURN_WITH_TRACE_AND_UNLOCK(fun, mutex, val)       \
+    {                                                       \
+        if(MALLOC_DEBUG) {                                  \
+            fprintf(stderr, "Exiting %s\n", #fun);          \
+            fflush(stderr);                                 \
+        }                                                   \
+        pthread_mutex_unlock(&mutex);                       \
+        return (val);                                       \
+    }
+
+//example format: "%s = %d"
+#define DEBUG_VAL(x, format)                                \
+    {                                                       \
+        if(MALLOC_DEBUG) {                                  \
+            fprintf(stderr, format, #x, x);                 \
+            fflush(stderr);                                 \
+        }                                                   \
+    }
 
 typedef struct mem_block {
     int32_t mb_size; /* mb_size > 0 => free, mb_size < 0 => allocated */
@@ -45,6 +84,7 @@ void memory_map(size_t size, alloc_context_t* res);
 void set_boundary_tag(mem_block_t *block);
 int block_has_enough_space(mem_block_t *block, size_t size, unsigned allignment);
 int is_trimming_needed(mem_block_t *block, unsigned allignment);
+uint64_t allign(uint64_t value, uint64_t allignment);
 uint64_t get_alligned_addr(mem_block_t *block, size_t size, unsigned allignment);
 mem_block_t *block_trim(mem_block_t *block, size_t size, unsigned allignment);
 int block_may_be_splited(mem_block_t *block, size_t size);
@@ -70,5 +110,6 @@ int is_block_extension_possible(mem_block_t *block, int64_t size);
 int is_extension_with_split_possible(mem_block_t *block, int64_t size);
 void extend_block_without_split(mem_block_t *block, int64_t size);
 void extend_block_with_split(mem_block_t *block, int64_t size);
+void *return_from_malloc(void *addr);
 
 #endif

@@ -38,6 +38,9 @@ void calloc_test();
 void realloc_test1();
 void realloc_test2();
 void realloc_test3();
+void functional_test_1();
+void functional_test_2();
+void functional_test_3();
 
 int main() {
     allocate_chunk_test();
@@ -73,6 +76,10 @@ int main() {
     realloc_test1();
     realloc_test2();
     realloc_test3();
+    
+    functional_test_1();
+    functional_test_2();
+    functional_test_3();
 
     return 0;
 }
@@ -623,4 +630,57 @@ void realloc_test3() {
         tab_after_realloc[i] = 10;
     foo_free(tab_after_realloc);
     mdump(1);
+}
+
+void functional_test_1() {
+    printf("Test: functional_test_1\n");
+    malloc_init();
+    int *addr[100000];
+    for(int i=0; i < 100000; i++) {
+        addr[i] = foo_malloc(24);
+        addr[i][0] = 10;
+        addr[i][5] = 20;
+    }
+    for(int i=0; i < 100000; i++) {
+        munit_assert_int(addr[i][0], ==, 10);
+        munit_assert_int(addr[i][5], ==, 20);
+        foo_free(addr[i]);
+    }
+}
+
+void functional_test_2() {
+      printf("Test: functional_test_2\n");
+    malloc_init();
+    int *addr[100000];
+    for(int i=0; i < 100000; i++) {
+        addr[i] = foo_malloc(24);
+        addr[i][0] = 10;
+        addr[i][5] = 20;
+    }
+    for(int i=0; i < 100000; i += 2) {
+        munit_assert_int(addr[i][0], ==, 10);
+        munit_assert_int(addr[i][5], ==, 20);
+        foo_free(addr[i]);
+    }  
+    for(int i=1; i < 100000; i += 2) {
+        munit_assert_int(addr[i][0], ==, 10);
+        munit_assert_int(addr[i][5], ==, 20);
+        foo_free(addr[i]);
+    }  
+}
+
+void functional_test_3() {
+      printf("Test: functional_test_3\n");
+    malloc_init();
+    int *addr[100000];
+    for(int i=0; i < 100000; i++) {
+        addr[i] = foo_malloc(24);
+        addr[i][0] = 10;
+        addr[i][5] = 20;
+    }
+    for(int i=100000-1; i >= 0; i--) {
+        munit_assert_int(addr[i][0], ==, 10);
+        munit_assert_int(addr[i][5], ==, 20);
+        foo_free(addr[i]);
+    }  
 }

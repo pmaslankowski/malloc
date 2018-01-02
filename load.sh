@@ -1,0 +1,1 @@
+cp malloc.so /lib/malloc.so
