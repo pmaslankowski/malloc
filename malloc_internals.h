@@ -66,5 +66,9 @@ void free_chunk_by_block(mem_block_t *block);
 int compare_block_sizes(mem_block_t *block, int64_t size);
 int is_shrink_possible(mem_block_t *block, int64_t size);
 void shrink_block(mem_block_t *block, int64_t size);
+int is_block_extension_possible(mem_block_t *block, int64_t size);
+int is_extension_with_split_possible(mem_block_t *block, int64_t size);
+void extend_block_without_split(mem_block_t *block, int64_t size);
+void extend_block_with_split(mem_block_t *block, int64_t size);
 
 #endif

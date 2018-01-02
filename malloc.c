@@ -49,17 +49,31 @@ void *foo_calloc(size_t count, size_t size) {
 }
 
 
-/*void *foo_realloc(void *ptr, size_t size) {
+void *foo_realloc(void *ptr, size_t size) {
     mem_block_t* block = (mem_block_t*) (ptr - MEM_BLOCK_OVERHEAD);
     assert(block->mb_size < 0);
-    if(size < -block->mb_size - BOUNDARY_TAG_SIZE) {
-
+    int comparison = compare_block_sizes(block, size);
+    if(comparison == 0) 
+        return ptr; //no need to reallocate
+    if(comparison < 0) {
+        if(is_block_extension_possible(block, size)) {
+            if(is_extension_with_split_possible(block, size))
+                extend_block_with_split(block, size);
+            else
+                extend_block_without_split(block, size);
+            return ptr;
+        } else {
+            void *new_ptr = foo_malloc(size);
+            memcpy(new_ptr, ptr, -block->mb_size - BOUNDARY_TAG_SIZE);
+            foo_free(ptr);
+            return new_ptr;
+        }
+    } else {
+        if(is_shrink_possible(block, size))
+            shrink_block(block, size);
+        return ptr;
     }
-    if(has_higher_block(block)) {
-        mem_block_t *higher_block = get_higher_block(block);
-        if(-)
-    }
-}*/
+}
 
 
 int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
@@ -413,4 +427,63 @@ void shrink_block(mem_block_t *block, int64_t size) {
         mem_chunk_t *chunk = get_chunk_of((void*)block_left + MEM_BLOCK_OVERHEAD);
         chunk_add_free_block(chunk, block_left);
     }
+}
+
+int is_block_extension_possible(mem_block_t *block, int64_t size) {
+    assert(block->mb_size < 0);
+    assert(-block->mb_size < size); // we indeed need to extend this block
+    int64_t aligned_size = allign(size, 8);
+    assert(aligned_size >= 16);
+    if(!has_higher_block(block))
+        return 0;
+    int64_t block_size = -block->mb_size;
+    mem_block_t *higher_block = get_higher_block(block);
+    return higher_block->mb_size >= (int64_t)(aligned_size + BOUNDARY_TAG_SIZE - block_size - MEM_BLOCK_OVERHEAD);
+}
+
+int is_extension_with_split_possible(mem_block_t *block, int64_t size) {
+    assert(block->mb_size < 0);
+    assert(-block->mb_size < size); // we indeed need to extend this block
+    int64_t aligned_size = allign(size, 8);
+    assert(aligned_size >= 16);
+    if(!has_higher_block(block))
+        return 0;
+    int64_t block_size = -block->mb_size;
+    mem_block_t *higher_block = get_higher_block(block);
+    return higher_block->mb_size >= (int64_t)(size + BOUNDARY_TAG_SIZE - block_size - MEM_BLOCK_OVERHEAD + sizeof(mem_block_t) + BOUNDARY_TAG_SIZE);  
+}
+
+void extend_block_without_split(mem_block_t *block, int64_t size) {
+    assert(block->mb_size < 0);
+    assert(-block->mb_size < size);
+    int64_t aligned_size = allign(size, 8);
+    assert(aligned_size >= 16);
+
+    mem_block_t *higher_block = get_higher_block(block);
+    block->mb_size += -(higher_block->mb_size + MEM_BLOCK_OVERHEAD);
+    block->mb_size *= -1;
+    set_boundary_tag(block);
+    block->mb_size *= -1;
+
+    LIST_REMOVE(higher_block, mb_node);
+}
+
+void extend_block_with_split(mem_block_t *block, int64_t size) {
+    assert(block->mb_size < 0);
+    assert(-block->mb_size < size);
+    int64_t aligned_size = allign(size, 8);
+    assert(aligned_size >= 16);
+
+    int64_t block_size = -block->mb_size;
+    mem_block_t *higher_block = get_higher_block(block);
+    mem_block_t *block_left = (mem_block_t*)((void*)block->mb_data + aligned_size + BOUNDARY_TAG_SIZE);
+    block_left->mb_size = block_size + higher_block->mb_size - aligned_size - BOUNDARY_TAG_SIZE;
+    set_boundary_tag(block_left);
+
+    block->mb_size = aligned_size + BOUNDARY_TAG_SIZE;
+    set_boundary_tag(block);
+    block->mb_size *= -1;
+    
+    LIST_INSERT_AFTER(higher_block, block_left, mb_node);
+    LIST_REMOVE(higher_block, mb_node);
 }

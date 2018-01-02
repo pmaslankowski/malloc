@@ -26,11 +26,18 @@ void is_addr_in_chunk_test();
 void compare_block_sizes_test();
 void shrink_block_test1();
 void shrink_block_test2();
+void is_block_extension_possible_test();
+void is_extension_with_split_possible_test();
+void extend_block_without_split_test();
+void extend_block_with_split_test();
 
 void malloc_int();
 void posix_memalign_test();
 void free_test();
 void calloc_test();
+void realloc_test1();
+void realloc_test2();
+void realloc_test3();
 
 int main() {
     allocate_chunk_test();
@@ -54,11 +61,18 @@ int main() {
     compare_block_sizes_test();
     shrink_block_test1();
     shrink_block_test2();
+    is_block_extension_possible_test();
+    is_extension_with_split_possible_test();
+    extend_block_without_split_test();
+    extend_block_with_split_test();
 
     malloc_int();
     posix_memalign_test();
     free_test();
     calloc_test();
+    realloc_test1();
+    realloc_test2();
+    realloc_test3();
 
     return 0;
 }
@@ -451,6 +465,77 @@ void shrink_block_test2() {
     munit_assert_int(block_free->mb_data[block_free->mb_size / 8 - 1], ==, 4000);
 }
 
+void is_block_extension_possible_test() {
+    printf("Test: is_block_extension_possible\n");
+    void *addr = malloc(100);
+    mem_block_t *block = (mem_block_t*) addr;    
+    block->mb_size = 40;
+    set_boundary_tag(block);
+    block->mb_size *= -1;
+    mem_block_t *higher_block = (mem_block_t*) (addr + 48);
+    higher_block->mb_size = 32;
+    set_boundary_tag(higher_block);
+
+    munit_assert_int(is_block_extension_possible(block, 48), ==, 1);
+    munit_assert_int(is_block_extension_possible(block, 51), ==, 1);
+    munit_assert_int(is_block_extension_possible(block, 71), ==, 1);
+    munit_assert_int(is_block_extension_possible(block, 72), ==, 1);
+    munit_assert_int(is_block_extension_possible(block, 73), ==, 0);
+    munit_assert_int(is_block_extension_possible(block, 85), ==, 0);
+
+    free(addr);
+}
+
+void is_extension_with_split_possible_test() {
+    printf("Test: is_extension_with_split_possible\n");
+    void *addr = malloc(200);
+    mem_block_t *block = (mem_block_t*) addr;    
+    block->mb_size = 40;
+    set_boundary_tag(block);
+    block->mb_size *= -1;
+    mem_block_t *higher_block = (mem_block_t*) (addr + 48);
+    higher_block->mb_size = 64;
+    set_boundary_tag(higher_block);
+
+    munit_assert_int(is_extension_with_split_possible(block, 48), ==, 1);
+    munit_assert_int(is_extension_with_split_possible(block, 70), ==, 1);
+    munit_assert_int(is_extension_with_split_possible(block, 72), ==, 1);
+    munit_assert_int(is_extension_with_split_possible(block, 73), ==, 0);
+    munit_assert_int(is_extension_with_split_possible(block, 80), ==, 0);
+    
+
+    free(addr);
+}
+
+void extend_block_without_split_test() {
+    printf("Test: extend_block_without_split\n");
+    malloc_init();
+    mem_chunk_t *chunk = allocate_chunk(4000);
+    mem_block_t *block1 = (mem_block_t*)(give_block_from_chunk(&chunk->ma_first, 64, 8) - MEM_BLOCK_OVERHEAD);
+
+    extend_block_without_split(block1, 120);
+
+    munit_assert_int(block1->mb_size, ==, -4040);
+    munit_assert_int(block1->mb_data[-block1->mb_size / 8 -1], ==, 4040);
+    munit_assert(LIST_EMPTY(&chunk->ma_freeblks));
+}
+
+void extend_block_with_split_test() {
+    printf("Test: extend_block_with_split\n");
+    malloc_init();
+    mem_chunk_t *chunk = allocate_chunk(4000);
+    mem_block_t *block1 = (mem_block_t*)(give_block_from_chunk(&chunk->ma_first, 64, 8) - MEM_BLOCK_OVERHEAD);
+
+    extend_block_with_split(block1, 120);
+
+    munit_assert_int(block1->mb_size, ==, -128);
+    munit_assert_int(block1->mb_data[-block1->mb_size / 8 -1], ==, 128);
+    mem_block_t *block2 = LIST_FIRST(&chunk->ma_freeblks);
+    munit_assert_ptr_equal(block1->mb_data - block1->mb_size / 8, block2);
+    munit_assert_int(block2->mb_size, ==, 4040 - 136);
+    munit_assert_int(block2->mb_data[block2->mb_size / 8 - 1], ==, 4040 - 136);
+}
+
 /* Functional tests: */
 void malloc_int() {
     printf("Test: malloc_int\n");  
@@ -484,11 +569,58 @@ void free_test() {
 }
 
 void calloc_test() {
-    printf("Test: calloc test");
+    printf("Test: calloc test\n");
     void *addr = foo_calloc(4, 8);
 
     for(int i=0; i < 32; i += 8)
         munit_assert_int(*(uint64_t*)(addr + i), ==, 0);
     
     foo_free(addr);
+}
+
+void realloc_test1() {
+    printf("Test: realloc_test1\n");
+    malloc_init();
+    int *tab = foo_malloc(20 * sizeof(int));
+    for(int i=0; i < 20; i++)
+        tab[i] = i;
+    int *placeholder = foo_malloc(20);
+    int *tab_after_realloc = foo_realloc(tab, 80); //do nothing
+    for(int i=0; i < 20; i++)
+        munit_assert_int(tab_after_realloc[i], ==, i);
+    foo_free(tab_after_realloc);
+    foo_free(placeholder);
+    mdump(1);
+}
+
+void realloc_test2() {
+    printf("Test: realloc_test2\n");
+    malloc_init();
+    int *tab = foo_malloc(20 * sizeof(int));
+    for(int i=0; i < 20; i++)
+        tab[i] = i;
+    int *placeholder = foo_malloc(20);
+    int *tab_after_realloc = foo_realloc(tab, 80 * sizeof(int));
+    for(int i=0; i < 20; i++)
+        munit_assert_int(tab_after_realloc[i], ==, i);
+    for(int i=20; i < 80; i++)
+        tab_after_realloc[i] = 10;
+    foo_free(tab_after_realloc);
+    foo_free(placeholder);
+    mdump(1);
+}
+
+void realloc_test3() {
+    printf("Test: realloc_test3\n");
+    malloc_init();
+    int *tab = foo_malloc(20 * sizeof(int));
+    for(int i=0; i < 20; i++)
+        tab[i] = i;
+    int *tab_after_realloc = foo_realloc(tab, 80 * sizeof(int));
+    for(int i=0; i < 20; i++)
+        munit_assert_int(tab_after_realloc[i], ==, i);
+    for(int i=20; i < 80; i++)
+        tab_after_realloc[i] = 10;
+    foo_free(tab_after_realloc);
+    mdump(1);
 }
