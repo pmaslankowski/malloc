@@ -18,37 +18,6 @@
 #define DEBUG_LONG(x) printf("%s = %ld\n", #x, x)
 
 
-#define ENTER_AND_LOCK(fun, mutex)                          \
-    do {                                                       \
-        if(MALLOC_DEBUG)                                    \
-            fprintf(stderr, "Entering %s\n", #fun);         \
-        pthread_mutex_lock(&mutex);                         \
-    } while(0)
-
-#define EXIT_AND_UNLOCK(fun, mutex)                         \
-    {                                                       \
-        if(MALLOC_DEBUG)                                    \
-            fprintf(stderr, "Exiting %s\n", #fun);          \
-        pthread_mutex_unlock(&mutex);                       \
-    }
-
-#define RETURN_WITH_TRACE_AND_UNLOCK(fun, mutex, val)       \
-    {                                                       \
-        if(MALLOC_DEBUG)                                    \
-            fprintf(stderr, "Exiting %s\n", #fun);          \
-        pthread_mutex_unlock(&mutex);                       \
-        return (val);                                       \
-    }
-
-//example format: "%s = %d"
-#define DEBUG_VAL(x, format)                                \
-    {                                                       \
-        if(MALLOC_DEBUG) {                                  \
-            fprintf(stderr, format, #x, x);                 \
-            fflush(stderr);                                 \
-        }                                                   \
-    }
-
 typedef struct mem_block {
     int32_t mb_size; /* mb_size > 0 => free, mb_size < 0 => allocated */
     union {
@@ -71,8 +40,13 @@ typedef struct alloc_context {
     int32_t chunk_size;
 } alloc_context_t;
 
-
+void *do_malloc(size_t size);
+void *do_calloc(size_t count, size_t size);
+void *do_realloc(void *ptr, size_t size);
+int do_posix_memalign(void **memptr, size_t alignment, size_t size);
+void do_free(void *ptr);
 void malloc_init();
+void mutex_init();
 mem_chunk_t *allocate_chunk(size_t size);
 void memory_map(size_t size, alloc_context_t* res);
 void set_boundary_tag(mem_block_t *block);

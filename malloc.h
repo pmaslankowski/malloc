@@ -2,7 +2,7 @@
 #define __MALLOC_H__
 
 #define USE_CUSTOM_MALLOC
-#define MALLOC_DEBUG 1
+#define MALLOC_DEBUG 0
 
 #ifdef USE_CUSTOM_MALLOC
 

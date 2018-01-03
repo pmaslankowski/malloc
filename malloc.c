@@ -13,6 +13,7 @@
 
 static LIST_HEAD(, mem_chunk) chunk_list; /* list of all chunks */
 static int malloc_initialised = 0;
+static int mutex_initialised = 0;
 
 static pthread_mutex_t malloc_mutex;
 static pthread_mutexattr_t malloc_mutexattr;
@@ -20,15 +21,93 @@ static pthread_mutexattr_t malloc_mutexattr;
 /* Implementation of interface: */
 
 void *foo_malloc(size_t size) {
+    if(MALLOC_DEBUG)
+        fprintf(stderr, "entering malloc(size = %lu)\n", size);
+    if(!mutex_initialised)
+        mutex_init();
+    
+    pthread_mutex_lock(&malloc_mutex);
+    void *result = do_malloc(size);
+    pthread_mutex_unlock(&malloc_mutex);
+
+    if(MALLOC_DEBUG)
+        fprintf(stderr, "exiting malloc (returned value = %p)\n", result);
+    
+    return result;
+}
+
+void *foo_calloc(size_t count, size_t size) {
+    if(MALLOC_DEBUG)
+        fprintf(stderr, "entering calloc(count = %lu, size = %lu)\n", count, size);
+    if(!mutex_initialised)
+        mutex_init();
+
+    pthread_mutex_lock(&malloc_mutex);
+    void *result = do_calloc(count, size);
+    pthread_mutex_unlock(&malloc_mutex);
+
+    if(MALLOC_DEBUG)
+        fprintf(stderr, "exiting calloc (returned value = %p)\n", result);
+
+    return result; 
+}
+
+void *foo_realloc(void* ptr, size_t size) {
+    if(MALLOC_DEBUG)
+        fprintf(stderr, "entering realloc (ptr = %p, size = %lu)\n", ptr, size);
+    if(!mutex_initialised)
+        mutex_init();
+    
+    pthread_mutex_lock(&malloc_mutex);
+    void *result = do_realloc(ptr, size);
+    pthread_mutex_unlock(&malloc_mutex);
+
+    if(MALLOC_DEBUG)
+        fprintf(stderr, "exiting realloc (returned value = %p)\n", result);
+    
+    return result;
+}
+
+int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
+    if(MALLOC_DEBUG)
+        fprintf(stderr, "entering posix_memalign (memptr = %p, alignment = %lu, size = %lu)\n", memptr, alignment, size);
+    if(!mutex_initialised)
+        mutex_init();
+    
+    pthread_mutex_lock(&malloc_mutex);
+    int result = do_posix_memalign(memptr, alignment, size);
+    pthread_mutex_unlock(&malloc_mutex);
+
+    if(MALLOC_DEBUG)
+        fprintf(stderr, "exiting posix_memalign (returned value = %d, *memptr = %p)\n", result, *memptr);
+    
+    return result;
+}
+
+void foo_free(void *addr) {
+    if(MALLOC_DEBUG)
+        fprintf(stderr, "entering free (addr = %p)\n", addr);
+    assert(mutex_initialised);
+
+    pthread_mutex_lock(&malloc_mutex);
+    do_free(addr);
+    pthread_mutex_unlock(&malloc_mutex);
+
+    if(MALLOC_DEBUG)
+        fprintf(stderr, "exiting free\n");
+}
+
+
+/* ==============================================================================================================================*/
+/* Auxilary functions: */
+
+void *do_malloc(size_t size) {
     if(!malloc_initialised)
         malloc_init();
     
-    ENTER_AND_LOCK(malloc, malloc_mutex);
-    DEBUG_VAL(size, "%s = %lu\n");
-
     if(size >= LARGE_THRESHOLD) {
         mem_chunk_t *chunk = allocate_chunk(allign(size, 8));
-        return return_from_malloc(give_block_from_chunk(&chunk->ma_first, allign(size, 8), DEFAULT_ALIGNMENT));
+        return give_block_from_chunk(&chunk->ma_first, allign(size, 8), DEFAULT_ALIGNMENT);
     }
 
     if(size < 16)
@@ -38,32 +117,30 @@ void *foo_malloc(size_t size) {
     LIST_FOREACH(chunk, &chunk_list, ma_node) {
         LIST_FOREACH(block, &chunk->ma_freeblks, mb_node) {
             if(block_has_enough_space(block, size, DEFAULT_ALIGNMENT)) 
-                return return_from_malloc(give_block_from_chunk(block, size, DEFAULT_ALIGNMENT));
+                return give_block_from_chunk(block, size, DEFAULT_ALIGNMENT);
         }
     }
 
     chunk = allocate_chunk(NEW_CHUNK_SIZE);
-    return return_from_malloc(give_block_from_chunk(&chunk->ma_first, size, DEFAULT_ALIGNMENT));
+    return give_block_from_chunk(&chunk->ma_first, size, DEFAULT_ALIGNMENT);
 }
 
 
-void *foo_calloc(size_t count, size_t size) {
-    ENTER_AND_LOCK(calloc, malloc_mutex);
+void *do_calloc(size_t count, size_t size) {
     if(count == 0)
-        RETURN_WITH_TRACE_AND_UNLOCK(calloc, malloc_mutex, NULL);
-    void *ptr = foo_malloc(count * size);
+        return NULL;
+    void *ptr = do_malloc(count * size);
     memset(ptr, 0, count * size);
-    RETURN_WITH_TRACE_AND_UNLOCK(calloc, malloc_mutex, ptr);
+    return ptr;
 }
 
 
-void *foo_realloc(void *ptr, size_t size) {
-    ENTER_AND_LOCK(realloc, malloc_mutex);
-    if(MALLOC_DEBUG) 
-        fprintf(stderr, "ptr = %p\n", ptr);
-    
+void *do_realloc(void *ptr, size_t size) {  
+    if(!malloc_initialised)
+        malloc_init();
+
     if(ptr == NULL)
-        RETURN_WITH_TRACE_AND_UNLOCK(realloc, malloc_mutex, foo_malloc(size));
+        return do_malloc(size);
     
     mem_block_t* block = (mem_block_t*) (ptr - MEM_BLOCK_OVERHEAD);
     assert(block->mb_size < 0);
@@ -71,7 +148,7 @@ void *foo_realloc(void *ptr, size_t size) {
     int comparison = compare_block_sizes(block, size);
     if(comparison == 0) {
         if(MALLOC_DEBUG) fprintf(stderr, "no need to realocate\n");
-        RETURN_WITH_TRACE_AND_UNLOCK(realloc, malloc_mutex, ptr); //no need to reallocate
+        return ptr; //no need to reallocate
     }
     if(comparison < 0) {
         if(comparison >= -8) // because of problems with mb_node in new block
@@ -85,13 +162,13 @@ void *foo_realloc(void *ptr, size_t size) {
                 if(MALLOC_DEBUG) fprintf(stderr, "Extension without split\n");
                 extend_block_without_split(block, size);
             }
-            RETURN_WITH_TRACE_AND_UNLOCK(realloc, malloc_mutex, ptr);
+            return ptr;
         } else {
             if(MALLOC_DEBUG) fprintf(stderr, "extension is impossible. Reallocating in another place\n");
-            void *new_ptr = foo_malloc(size);
+            void *new_ptr = do_malloc(size);
             memcpy(new_ptr, ptr, -block->mb_size - BOUNDARY_TAG_SIZE);
-            foo_free(ptr);
-            RETURN_WITH_TRACE_AND_UNLOCK(realloc, malloc_mutex, new_ptr);
+            do_free(ptr);
+            return new_ptr;
         }
     } else {
         if(allign(size, 8u) < 16)
@@ -100,23 +177,22 @@ void *foo_realloc(void *ptr, size_t size) {
             if(MALLOC_DEBUG) fprintf(stderr, "Shrinking is possible\n");
             shrink_block(block, size);
         }
-        RETURN_WITH_TRACE_AND_UNLOCK(realloc, malloc_mutex, ptr);
+        return ptr;
     }
 }
 
 
-int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
-    ENTER_AND_LOCK(foo_posix_memalign, malloc_mutex);
+int do_posix_memalign(void **memptr, size_t alignment, size_t size) {
     if(!malloc_initialised)
         malloc_init();
     if (alignment % sizeof(void*) != 0 || (alignment & (alignment-1)) != 0)
-        RETURN_WITH_TRACE_AND_UNLOCK(foo_posix_memalign, malloc_mutex, EINVAL);
+        return EINVAL;
 
     size_t size_and_alignment = size + 2 * alignment; // 2*alignment is enough when alignment = 16, so it should be enough whene alignment > 16
     if(size>= LARGE_THRESHOLD) {
         mem_chunk_t *chunk = allocate_chunk(size_and_alignment);
         *memptr = give_block_from_chunk(&chunk->ma_first, size, alignment);
-        RETURN_WITH_TRACE_AND_UNLOCK(foo_posix_memalign, malloc_mutex, 0);
+        return 0;
     }
 
     if(size < 16)
@@ -127,26 +203,20 @@ int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
         LIST_FOREACH(block, &chunk->ma_freeblks, mb_node) {
             if(block_has_enough_space(block, size, alignment)) {
                 *memptr = give_block_from_chunk(block, size, alignment);
-                RETURN_WITH_TRACE_AND_UNLOCK(foo_posix_memalign, malloc_mutex, 0);
+                return 0;
             }
         }
     }
 
     chunk = allocate_chunk(NEW_CHUNK_SIZE);
     *memptr = give_block_from_chunk(&chunk->ma_first, size, alignment); 
-    RETURN_WITH_TRACE_AND_UNLOCK(foo_posix_memalign, malloc_mutex, 0);
+    return 0;
 }
 
 
-void foo_free(void *ptr) { 
-    ENTER_AND_LOCK(free, malloc_mutex);
-    if(MALLOC_DEBUG) 
-        fprintf(stderr, "ptr = %p\n", ptr);
-    
-    if(ptr == NULL) {
-        EXIT_AND_UNLOCK(free, malloc_mutex);
+void do_free(void *ptr) {    
+    if(ptr == NULL) 
         return;
-    }
 
     mem_block_t *block = (mem_block_t*) (ptr - MEM_BLOCK_OVERHEAD);
     assert(block->mb_size < 0);
@@ -164,7 +234,6 @@ void foo_free(void *ptr) {
         }
         if(is_unmap_needed(lower_block))
             free_chunk_by_block(lower_block);  
-        EXIT_AND_UNLOCK(free, malloc_mutex);  
         return;
     }
 
@@ -176,7 +245,6 @@ void foo_free(void *ptr) {
         LIST_REMOVE(higher_block, mb_node);
         if(is_unmap_needed(block))
             free_chunk_by_block(block);
-        EXIT_AND_UNLOCK(free, malloc_mutex);
         return;
     }
 
@@ -185,7 +253,6 @@ void foo_free(void *ptr) {
     chunk_add_free_block(chunk, block);
     if(is_unmap_needed(block))
         free_chunk(chunk);
-    EXIT_AND_UNLOCK(free, malloc_mutex);
 }
 
 
@@ -211,13 +278,14 @@ void mdump(int verbose) {
 }
 
 
-
-
-/* ==============================================================================================================================*/
-/* Auxilary functions: */
 void malloc_init() {
     malloc_initialised = 1;
     LIST_INIT(&chunk_list);
+}
+
+
+void mutex_init() {
+    mutex_initialised = 1;
     assert(pthread_mutexattr_init(&malloc_mutexattr) == 0);
     assert(pthread_mutexattr_settype(&malloc_mutexattr, PTHREAD_MUTEX_ERRORCHECK) == 0);
     pthread_mutex_init(&malloc_mutex, &malloc_mutexattr);
@@ -536,13 +604,4 @@ void extend_block_with_split(mem_block_t *block, int64_t size) {
     block->mb_size = aligned_size + BOUNDARY_TAG_SIZE;
     set_boundary_tag(block);
     block->mb_size *= -1;
-    
-    // SEGFAULT HERE!
-}
-
-void *return_from_malloc(void *addr) {
-    if(MALLOC_DEBUG) 
-        fprintf(stderr, "Returning from malloc: %p\n", addr);
-    pthread_mutex_unlock(&malloc_mutex);
-    return addr;
 }
