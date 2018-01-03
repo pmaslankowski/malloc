@@ -13,19 +13,15 @@
 
 static LIST_HEAD(, mem_chunk) chunk_list; /* list of all chunks */
 static int malloc_initialised = 0;
-static int mutex_initialised = 0;
 
-static pthread_mutex_t malloc_mutex;
-static pthread_mutexattr_t malloc_mutexattr;
+static pthread_mutex_t malloc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* Implementation of interface: */
 
 void *foo_malloc(size_t size) {
     if(MALLOC_DEBUG)
         fprintf(stderr, "entering malloc(size = %lu)\n", size);
-    if(!mutex_initialised)
-        mutex_init();
-    
+        
     pthread_mutex_lock(&malloc_mutex);
     void *result = do_malloc(size);
     pthread_mutex_unlock(&malloc_mutex);
@@ -39,8 +35,6 @@ void *foo_malloc(size_t size) {
 void *foo_calloc(size_t count, size_t size) {
     if(MALLOC_DEBUG)
         fprintf(stderr, "entering calloc(count = %lu, size = %lu)\n", count, size);
-    if(!mutex_initialised)
-        mutex_init();
 
     pthread_mutex_lock(&malloc_mutex);
     void *result = do_calloc(count, size);
@@ -55,8 +49,6 @@ void *foo_calloc(size_t count, size_t size) {
 void *foo_realloc(void* ptr, size_t size) {
     if(MALLOC_DEBUG)
         fprintf(stderr, "entering realloc (ptr = %p, size = %lu)\n", ptr, size);
-    if(!mutex_initialised)
-        mutex_init();
     
     pthread_mutex_lock(&malloc_mutex);
     void *result = do_realloc(ptr, size);
@@ -71,8 +63,6 @@ void *foo_realloc(void* ptr, size_t size) {
 int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
     if(MALLOC_DEBUG)
         fprintf(stderr, "entering posix_memalign (memptr = %p, alignment = %lu, size = %lu)\n", memptr, alignment, size);
-    if(!mutex_initialised)
-        mutex_init();
     
     pthread_mutex_lock(&malloc_mutex);
     int result = do_posix_memalign(memptr, alignment, size);
@@ -87,8 +77,7 @@ int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
 void foo_free(void *addr) {
     if(MALLOC_DEBUG)
         fprintf(stderr, "entering free (addr = %p)\n", addr);
-    assert(mutex_initialised);
-
+    
     pthread_mutex_lock(&malloc_mutex);
     do_free(addr);
     pthread_mutex_unlock(&malloc_mutex);
@@ -281,14 +270,6 @@ void mdump(int verbose) {
 void malloc_init() {
     malloc_initialised = 1;
     LIST_INIT(&chunk_list);
-}
-
-
-void mutex_init() {
-    mutex_initialised = 1;
-    assert(pthread_mutexattr_init(&malloc_mutexattr) == 0);
-    assert(pthread_mutexattr_settype(&malloc_mutexattr, PTHREAD_MUTEX_ERRORCHECK) == 0);
-    pthread_mutex_init(&malloc_mutex, &malloc_mutexattr);
 }
 
 

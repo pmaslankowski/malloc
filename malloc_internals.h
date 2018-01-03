@@ -46,7 +46,6 @@ void *do_realloc(void *ptr, size_t size);
 int do_posix_memalign(void **memptr, size_t alignment, size_t size);
 void do_free(void *ptr);
 void malloc_init();
-void mutex_init();
 mem_chunk_t *allocate_chunk(size_t size);
 void memory_map(size_t size, alloc_context_t* res);
 void set_boundary_tag(mem_block_t *block);
