@@ -20,10 +20,11 @@ static pthread_mutexattr_t malloc_mutexattr;
 /* Implementation of interface: */
 
 void *foo_malloc(size_t size) {
-    ENTER_AND_LOCK(malloc, malloc_mutex);
-    DEBUG_VAL(size, "%s = %lu\n");
     if(!malloc_initialised)
         malloc_init();
+    
+    ENTER_AND_LOCK(malloc, malloc_mutex);
+    DEBUG_VAL(size, "%s = %lu\n");
 
     if(size >= LARGE_THRESHOLD) {
         mem_chunk_t *chunk = allocate_chunk(allign(size, 8));

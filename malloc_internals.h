@@ -19,29 +19,23 @@
 
 
 #define ENTER_AND_LOCK(fun, mutex)                          \
-    {                                                       \
-        if(MALLOC_DEBUG) {                                  \
+    do {                                                       \
+        if(MALLOC_DEBUG)                                    \
             fprintf(stderr, "Entering %s\n", #fun);         \
-            fflush(stderr);                                 \
-        }                                                   \
         pthread_mutex_lock(&mutex);                         \
-    }
+    } while(0)
 
 #define EXIT_AND_UNLOCK(fun, mutex)                         \
     {                                                       \
-        if(MALLOC_DEBUG) {                                  \
+        if(MALLOC_DEBUG)                                    \
             fprintf(stderr, "Exiting %s\n", #fun);          \
-            fflush(stderr);                                 \
-        }                                                   \
         pthread_mutex_unlock(&mutex);                       \
     }
 
 #define RETURN_WITH_TRACE_AND_UNLOCK(fun, mutex, val)       \
     {                                                       \
-        if(MALLOC_DEBUG) {                                  \
+        if(MALLOC_DEBUG)                                    \
             fprintf(stderr, "Exiting %s\n", #fun);          \
-            fflush(stderr);                                 \
-        }                                                   \
         pthread_mutex_unlock(&mutex);                       \
         return (val);                                       \
     }
