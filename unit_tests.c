@@ -755,5 +755,10 @@ static const MunitSuite test_suite = {
 
 
 int main(int argc, char* argv[MUNIT_ARRAY_PARAM(argc + 1)]) {
+    #ifdef USE_CUSTOM_MALLOC
+        printf("Comment line 7 (#define USE_CUSTOM_MALLOC) in malloc.h and build project again\n");
+        return -1;
+    #endif
+
     return munit_suite_main(&test_suite, (void*) "µnit", argc, argv);
 }
