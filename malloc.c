@@ -116,7 +116,7 @@ void *do_malloc(size_t size) {
 
 
 void *do_calloc(size_t count, size_t size) {
-    if(count == 0)
+    if(count == 0 || size == 0)
         return NULL;
     void *ptr = do_malloc(count * size);
     memset(ptr, 0, count * size);
