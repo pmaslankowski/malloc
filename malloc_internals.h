@@ -13,6 +13,7 @@
 #define MEM_BLOCK_OVERHEAD (sizeof(mem_block_t) - sizeof(LIST_ENTRY(mem_block_t))) // size of memory meta data in mem_block_t
 #define MEM_CHUNK_OVERHEAD (sizeof(mem_chunk_t) - sizeof(LIST_ENTRY(mem_block_t))) // size of memory meta data in mem_chunk_t
 
+#define UNUSED(x) (void)(x)
 #define DEBUG_ULONG(x) printf("%s = %lu\n", #x, x) 
 #define DEBUG_INT(x) printf("%s = %d\n", #x, x)
 #define DEBUG_LONG(x) printf("%s = %ld\n", #x, x)
