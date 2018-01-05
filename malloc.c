@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <errno.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <signal.h>
 
 #include "malloc.h"
 #include "malloc_internals.h"
@@ -15,6 +17,23 @@ static LIST_HEAD(, mem_chunk) chunk_list; /* list of all chunks */
 static int malloc_initialised = 0;
 
 static pthread_mutex_t malloc_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+
+void sigsegv_handler(int code, siginfo_t *s, void *v_ctx) {
+    UNUSED(s); UNUSED(v_ctx); UNUSED(code);
+    mdump(0);
+	exit(0);	
+}
+
+struct sigaction sigsegv_sigaction;
+
+void bind_handler() {
+    printf("halo");
+	sigsegv_sigaction.sa_sigaction = sigsegv_handler;
+	sigsegv_sigaction.sa_flags = SA_SIGINFO;
+	sigaction(SIGSEGV, &sigsegv_sigaction, NULL);
+}
+
 
 /* Implementation of interface: */
 
@@ -270,6 +289,8 @@ void mdump(int verbose) {
 void malloc_init() {
     malloc_initialised = 1;
     LIST_INIT(&chunk_list);
+    printf("halo1\n");
+    bind_handler();
 }
 
 
