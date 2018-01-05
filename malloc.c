@@ -18,26 +18,14 @@ static int malloc_initialised = 0;
 
 static pthread_mutex_t malloc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-
-void sigsegv_handler(int code, siginfo_t *s, void *v_ctx) {
-    UNUSED(s); UNUSED(v_ctx); UNUSED(code);
-    mdump(0);
-	exit(0);	
-}
-
 struct sigaction sigsegv_sigaction;
 
-void bind_handler() {
-    printf("halo");
-	sigsegv_sigaction.sa_sigaction = sigsegv_handler;
-	sigsegv_sigaction.sa_flags = SA_SIGINFO;
-	sigaction(SIGSEGV, &sigsegv_sigaction, NULL);
-}
 
 
 /* Implementation of interface: */
 
 void *foo_malloc(size_t size) {
+    //bind_handler();
     if(MALLOC_DEBUG)
         fprintf(stderr, "entering malloc(size = %lu)\n", size);
         
@@ -268,29 +256,45 @@ void mdump(int verbose) {
     mem_chunk_t *chunk;
     mem_block_t *block;
     int chunk_index = 0;
+    fprintf(stderr, "Memory manager dump:\n");
     LIST_FOREACH(chunk, &chunk_list, ma_node) {
-        printf("Chunk: %d\nSize: %d\nBlocks:\n", chunk_index++, chunk->size);
+        fprintf(stderr, "Chunk: %d\nSize: %d\nBlocks:\n", chunk_index++, chunk->size);
         int block_index = 0;
         LIST_FOREACH(block, &chunk->ma_freeblks, mb_node) {
-            printf("\tBlock: %d\t Size: %d", block_index++, block->mb_size);
+            fprintf(stderr, "\tBlock: %d\t Size: %d\t ptr: %p ", block_index++, block->mb_size, block->mb_data);
             if(verbose) {
                 printf("\tData:");
                 for(int i=0; i < block->mb_size; i++) {
                     if(i % 8 == 0) printf("\n\t\t%lx: ",(uint64_t) block->mb_data + i);
-                    printf("%04x ", *((uint8_t*) block->mb_data + i));
+                    fprintf(stderr, "%04x ", *((uint8_t*) block->mb_data + i));
                 }
             }
+            fprintf(stderr, "\n");
         }
     }
+}
 
+
+
+/* Segmentation fault signal handler: used when flag OVERRIDE_SIGSEGV_HANDLER is set to 1 */
+void sigsegv_handler(int code, siginfo_t *s, void *v_ctx) {
+    UNUSED(s); UNUSED(v_ctx); UNUSED(code);
+    mdump(0);
+	exit(0);	
+}
+
+void bind_sigsegv_handler() {
+	sigsegv_sigaction.sa_sigaction = sigsegv_handler;
+	sigsegv_sigaction.sa_flags = SA_SIGINFO;
+	sigaction(SIGSEGV, &sigsegv_sigaction, NULL);
 }
 
 
 void malloc_init() {
     malloc_initialised = 1;
     LIST_INIT(&chunk_list);
-    printf("halo1\n");
-    bind_handler();
+    if(OVERRIDE_SIGSEGV_HANDLER)
+        bind_sigsegv_handler();
 }
 
 

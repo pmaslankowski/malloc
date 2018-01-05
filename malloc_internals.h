@@ -5,6 +5,7 @@
 #include <sys/queue.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <signal.h>
 
 #define BOUNDARY_TAG_SIZE 8
 #define EOC_SIZE 8
@@ -79,5 +80,7 @@ int is_extension_with_split_possible(mem_block_t *block, int64_t size);
 void extend_block_without_split(mem_block_t *block, int64_t size);
 void extend_block_with_split(mem_block_t *block, int64_t size);
 void *return_from_malloc(void *addr);
+void sigsegv_handler(int code, siginfo_t *s, void *v_ctx);
+void bind_sigsegv_handler();
 
 #endif
