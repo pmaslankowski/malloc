@@ -1,3 +1,10 @@
+/*                      SYSTEMY OPERACYJNE 2017/2018                         *
+ *                      Projekt 1 - Menadżer pamięci                         *
+ *                       Autor: Piotr Maślankowski                           *
+ *                                                                           *
+ *     unit_tests.c - testy jednostkowe oraz kilka testów funkcjonalnych     */
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/queue.h>

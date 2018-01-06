@@ -1,3 +1,10 @@
+/*                                  SYSTEMY OPERACYJNE 2017/2018                                *
+ *                                  Projekt 1 - Menadżer pamięci                                *
+ *                                   Autor: Piotr Maślankowski                                  *
+ *                                                                                              *
+ * malloc_internals.h - definicje struktur oraz deklaracje prywatnych funkcji menadżera pamięci */
+
+
 /* This header exposes internal functions of malloc for unit test purposes */
 #ifndef __MALLOC_INTERNALS_H__
 #define __MALLOC_INTERNALS_H__

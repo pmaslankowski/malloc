@@ -1,3 +1,10 @@
+/*                      SYSTEMY OPERACYJNE 2017/2018                         *
+ *                      Projekt 1 - Menadżer pamięci                         *
+ *                       Autor: Piotr Maślankowski                           *
+ *                                                                           *
+ *            malloc.c - implementacja funkcji menadżera pamięci             */
+
+
 #include <sys/queue.h>
 #include <sys/mman.h>
 #include <unistd.h>
