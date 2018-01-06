@@ -19,6 +19,8 @@
 #define DEBUG_INT(x) printf("%s = %d\n", #x, x)
 #define DEBUG_LONG(x) printf("%s = %ld\n", #x, x)
 
+#define SAFE_PRINT(str) write(STDERR_FILENO, str, strlen(str))
+
 
 typedef struct mem_block {
     int32_t mb_size; /* mb_size > 0 => free, mb_size < 0 => allocated */

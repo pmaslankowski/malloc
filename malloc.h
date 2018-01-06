@@ -2,6 +2,7 @@
 #define __MALLOC_H__
 
 #define USE_CUSTOM_MALLOC
+#define MALLOC_DEBUG_SAFE 1
 #define MALLOC_DEBUG 1
 #define OVERRIDE_SIGSEGV_HANDLER 1
 

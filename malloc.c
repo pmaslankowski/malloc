@@ -25,72 +25,71 @@ struct sigaction sigsegv_sigaction;
 /* Implementation of interface: */
 
 void *foo_malloc(size_t size) {
-    //bind_handler();
-    if(MALLOC_DEBUG)
-        fprintf(stderr, "entering malloc(size = %lu)\n", size);
-        
+    if(MALLOC_DEBUG_SAFE) SAFE_PRINT("[safe trace]: entering malloc\n");
+    if(MALLOC_DEBUG) fprintf(stderr, "[trace]: entering malloc(size = %lu)\n", size);
+
     pthread_mutex_lock(&malloc_mutex);
     void *result = do_malloc(size);
     pthread_mutex_unlock(&malloc_mutex);
 
-    if(MALLOC_DEBUG)
-        fprintf(stderr, "exiting malloc (returned value = %p)\n", result);
-    
+    if(MALLOC_DEBUG_SAFE) SAFE_PRINT("[safe trace]: exiting malloc\n");
+    if(MALLOC_DEBUG) fprintf(stderr, "[trace]: exiting malloc (returned value = %p)\n", result);
+
     return result;
 }
 
 void *foo_calloc(size_t count, size_t size) {
-    if(MALLOC_DEBUG)
-        fprintf(stderr, "entering calloc(count = %lu, size = %lu)\n", count, size);
+    if(MALLOC_DEBUG_SAFE) SAFE_PRINT("[safe trace]: entering calloc\n");
+    if(MALLOC_DEBUG) fprintf(stderr, "[trace]: entering calloc(count = %lu, size = %lu)\n", count, size);
 
     pthread_mutex_lock(&malloc_mutex);
     void *result = do_calloc(count, size);
     pthread_mutex_unlock(&malloc_mutex);
 
-    if(MALLOC_DEBUG)
-        fprintf(stderr, "exiting calloc (returned value = %p)\n", result);
+    if(MALLOC_DEBUG_SAFE) SAFE_PRINT("[safe trace]: exiting calloc\n");
+    if(MALLOC_DEBUG) fprintf(stderr, "[trace]: exiting calloc (returned value = %p)\n", result);
 
     return result; 
 }
 
 void *foo_realloc(void* ptr, size_t size) {
-    if(MALLOC_DEBUG)
-        fprintf(stderr, "entering realloc (ptr = %p, size = %lu)\n", ptr, size);
+    if(MALLOC_DEBUG_SAFE) SAFE_PRINT("[safe trace]: entering realloc\n");
+    if(MALLOC_DEBUG) fprintf(stderr, "[trace]: entering realloc (ptr = %p, size = %lu)\n", ptr, size);
     
     pthread_mutex_lock(&malloc_mutex);
     void *result = do_realloc(ptr, size);
     pthread_mutex_unlock(&malloc_mutex);
 
-    if(MALLOC_DEBUG)
-        fprintf(stderr, "exiting realloc (returned value = %p)\n", result);
+    if(MALLOC_DEBUG_SAFE) SAFE_PRINT("[safe trace]: exiting realloc\n");
+    if(MALLOC_DEBUG) fprintf(stderr, "[trace]: exiting realloc (returned value = %p)\n", result);
     
     return result;
 }
 
 int foo_posix_memalign(void **memptr, size_t alignment, size_t size) {
-    if(MALLOC_DEBUG)
-        fprintf(stderr, "entering posix_memalign (memptr = %p, alignment = %lu, size = %lu)\n", memptr, alignment, size);
+    if(MALLOC_DEBUG_SAFE) SAFE_PRINT("[safe trace]: entering posix_memalign\n");
+    if(MALLOC_DEBUG) fprintf(stderr, "[trace]: entering posix_memalign (memptr = %p, alignment = %lu, size = %lu)\n", memptr, alignment, size);
     
     pthread_mutex_lock(&malloc_mutex);
     int result = do_posix_memalign(memptr, alignment, size);
     pthread_mutex_unlock(&malloc_mutex);
 
-    if(MALLOC_DEBUG)
-        fprintf(stderr, "exiting posix_memalign (returned value = %d, *memptr = %p)\n", result, *memptr);
+    if(MALLOC_DEBUG_SAFE) SAFE_PRINT("[safe trace]: exiting posix_memalign\n");
+    if(MALLOC_DEBUG) fprintf(stderr, "[trace]: exiting posix_memalign (returned value = %d, *memptr = %p)\n", result, *memptr);
     
     return result;
 }
 
 void foo_free(void *addr) {
-    if(MALLOC_DEBUG)
-        fprintf(stderr, "entering free (addr = %p)\n", addr);
+    if(MALLOC_DEBUG_SAFE) SAFE_PRINT("[safe trace]: entering free\n");
+    if(MALLOC_DEBUG) fprintf(stderr, "[trace]: entering free (addr = %p)\n", addr);
     
     pthread_mutex_lock(&malloc_mutex);
     do_free(addr);
     pthread_mutex_unlock(&malloc_mutex);
 
-    if(MALLOC_DEBUG)
-        fprintf(stderr, "exiting free\n");
+    if(MALLOC_DEBUG_SAFE) SAFE_PRINT("[safe trace]: exiting free\n");
+    if(MALLOC_DEBUG) fprintf(stderr, "[trace]: exiting free\n");
 }
 
 
