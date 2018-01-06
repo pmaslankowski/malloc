@@ -14,6 +14,9 @@
 #include <stdio.h>
 #include <signal.h>
 
+
+#define LARGE_THRESHOLD 3*4048
+#define NEW_CHUNK_SIZE 4*4048
 #define BOUNDARY_TAG_SIZE 8
 #define EOC_SIZE 8
 #define EOC ((int64_t)-1)

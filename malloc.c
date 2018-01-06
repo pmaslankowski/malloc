@@ -18,7 +18,6 @@
 
 #include "malloc.h"
 #include "malloc_internals.h"
-#include "malloc_constants.h"
 
 static LIST_HEAD(, mem_chunk) chunk_list; /* list of all chunks */
 static int malloc_initialised = 0;
