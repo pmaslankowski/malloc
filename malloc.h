@@ -12,7 +12,7 @@
 #define MALLOC_DEBUG_SAFE 0
 #define MALLOC_DEBUG 0
 #define OVERRIDE_SIGSEGV_HANDLER 0
-#define OVERRIDE_STD_MALLOC 0
+#define OVERRIDE_STD_MALLOC 1
 
 #if OVERRIDE_STD_MALLOC
 #define foo_malloc malloc 

@@ -220,7 +220,11 @@ void do_free(void *ptr) {
         return;
 
     mem_block_t *block = (mem_block_t*) (ptr - MEM_BLOCK_OVERHEAD);
-    assert(block->mb_size < 0);
+    if(block->mb_size >= 0) {
+        fprintf(stderr, "Attemp to free already freed block. Address: %p\n", ptr);
+        abort();
+    }
+    
     block->mb_size *= -1;
 
     if(is_merge_with_lower_block_possible(block)) {
